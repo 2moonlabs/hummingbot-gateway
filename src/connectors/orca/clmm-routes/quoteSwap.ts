@@ -159,3 +159,17 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
 };
 
 export default quoteSwapRoute;
+
+// Export quoteSwap wrapper for unified trading routes
+export async function quoteSwap(
+  fastify: FastifyInstance,
+  network: string,
+  baseToken: string,
+  quoteToken: string,
+  amount: number,
+  side: 'BUY' | 'SELL',
+  poolAddress: string,
+  slippagePct?: number,
+): Promise<QuoteSwapResponseType> {
+  return await formatSwapQuote(fastify, network, baseToken, quoteToken, amount, side, poolAddress, slippagePct);
+}

@@ -4,6 +4,7 @@ import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import { getEthereumNetworkConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaNetworkConfig } from '../../chains/solana/solana.config';
 import { getPoolInfo as meteoraGetPoolInfo } from '../../connectors/meteora/clmm-routes/poolInfo';
+import { getPoolInfo as orcaGetPoolInfo } from '../../connectors/orca/clmm-routes/poolInfo';
 import { getPoolInfo as pancakeswapGetPoolInfo } from '../../connectors/pancakeswap/clmm-routes/poolInfo';
 import { getPoolInfo as pancakeswapSolGetPoolInfo } from '../../connectors/pancakeswap-sol/clmm-routes/poolInfo';
 import { getPoolInfo as raydiumGetPoolInfo } from '../../connectors/raydium/clmm-routes/poolInfo';
@@ -19,8 +20,8 @@ const CLMM_POOL_ADDRESS_EXAMPLE = '2sf5NYcY4zUPXUSmG6f66mskb24t5F8S11pC1Nz5nQT3'
  */
 const UnifiedPoolInfoRequestSchema = Type.Object({
   connector: Type.String({
-    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)',
-    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap'],
+    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)',
+    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap', 'orca'],
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -73,6 +74,8 @@ async function getSolanaPoolInfo(
       return await meteoraGetPoolInfo(fastify, network, poolAddress);
     case 'pancakeswap-sol':
       return await pancakeswapSolGetPoolInfo(fastify, network, poolAddress);
+    case 'orca':
+      return await orcaGetPoolInfo(fastify, network, poolAddress);
     default:
       throw fastify.httpErrors.badRequest(`Unsupported Solana CLMM connector: ${connector}`);
   }

@@ -5,8 +5,8 @@ import {
   WhirlpoolIx,
   swapQuoteByInputToken,
   swapQuoteByOutputToken,
-  buildWhirlpoolClient,
   IGNORE_CACHE,
+  SwapQuote,
 } from '@orca-so/whirlpools-sdk';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
@@ -22,7 +22,7 @@ import { Orca } from '../orca';
 import { handleWsolAta } from '../orca.utils';
 import { OrcaClmmExecuteSwapRequest, OrcaClmmExecuteSwapRequestType } from '../schemas';
 
-async function executeSwap(
+export async function executeSwap(
   fastify: FastifyInstance,
   network: string,
   address: string,
@@ -36,13 +36,11 @@ async function executeSwap(
   const solana = await Solana.getInstance(network);
   const orca = await Orca.getInstance(network);
   const wallet = await solana.getWallet(address);
-  const ctx = await orca.getWhirlpoolContextForWallet(address);
+  const client = await orca.getWhirlpoolClientForWallet(address);
   const whirlpoolPubkey = new PublicKey(poolAddress);
-
-  // Build whirlpool client and fetch pool
-  const client = buildWhirlpoolClient(ctx);
   const whirlpool = await client.getPool(whirlpoolPubkey, IGNORE_CACHE);
-  const whirlpoolData = whirlpool.getData();
+
+  await whirlpool.refreshData();
 
   // Get token info
   const baseTokenInfo = await solana.getToken(baseTokenIdentifier);
@@ -55,8 +53,8 @@ async function executeSwap(
   }
 
   // Fetch token mint info
-  const mintA = await ctx.fetcher.getMintInfo(whirlpoolData.tokenMintA);
-  const mintB = await ctx.fetcher.getMintInfo(whirlpoolData.tokenMintB);
+  const mintA = await client.getFetcher().getMintInfo(whirlpool.getTokenAInfo().address);
+  const mintB = await client.getFetcher().getMintInfo(whirlpool.getTokenBInfo().address);
   if (!mintA || !mintB) {
     throw fastify.httpErrors.notFound('Token mint not found');
   }
@@ -73,19 +71,19 @@ async function executeSwap(
         // BUY: amount is output (base), input is quote
         outputTokenInfo: baseTokenInfo,
         inputTokenInfo: quoteTokenInfo,
-        outputTokenMint: new PublicKey(baseTokenInfo.address),
-        inputTokenMint: new PublicKey(quoteTokenInfo.address),
+        outputTokenMint: baseTokenInfo.address,
+        inputTokenMint: quoteTokenInfo.address,
       }
     : {
         // SELL: amount is input (base), output is quote
         inputTokenInfo: baseTokenInfo,
         outputTokenInfo: quoteTokenInfo,
-        inputTokenMint: new PublicKey(baseTokenInfo.address),
-        outputTokenMint: new PublicKey(quoteTokenInfo.address),
+        inputTokenMint: baseTokenInfo.address,
+        outputTokenMint: quoteTokenInfo.address,
       };
 
   // Determine if we're swapping A->B or B->A based on input token
-  const isInputTokenA = inputTokenMint.equals(whirlpoolData.tokenMintA);
+  const isInputTokenA = inputTokenMint === whirlpool.getTokenAInfo().address.toString();
   const aToB = isInputTokenA;
 
   // Convert amount to BN with proper decimals
@@ -93,7 +91,7 @@ async function executeSwap(
   const outputDecimals = isInputTokenA ? mintB.decimals : mintA.decimals;
 
   // Get swap quote based on side
-  let quote;
+  let quote: SwapQuote;
   if (isBuyingSide) {
     // BUY: quote by output token (how much base we want to receive)
     const outputAmountBN = new BN(Math.floor(amount * Math.pow(10, outputDecimals)));
@@ -103,7 +101,7 @@ async function executeSwap(
       outputAmountBN,
       Percentage.fromDecimal(new Decimal(slippagePct)),
       ORCA_WHIRLPOOL_PROGRAM_ID,
-      ctx.fetcher,
+      client.getFetcher(),
       IGNORE_CACHE,
     );
   } else {
@@ -115,7 +113,7 @@ async function executeSwap(
       inputAmountBN,
       Percentage.fromDecimal(new Decimal(slippagePct)),
       ORCA_WHIRLPOOL_PROGRAM_ID,
-      ctx.fetcher,
+      client.getFetcher(),
       IGNORE_CACHE,
     );
   }
@@ -125,18 +123,18 @@ async function executeSwap(
   );
 
   // Build transaction
-  const builder = new TransactionBuilder(ctx.connection, ctx.wallet);
+  const builder = new TransactionBuilder(client.getContext().connection, client.getContext().wallet);
 
   // Get token accounts
   const tokenOwnerAccountA = getAssociatedTokenAddressSync(
-    whirlpoolData.tokenMintA,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenAInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintA.tokenProgram,
   );
   const tokenOwnerAccountB = getAssociatedTokenAddressSync(
-    whirlpoolData.tokenMintB,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenBInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintB.tokenProgram,
   );
@@ -148,23 +146,37 @@ async function executeSwap(
     // Swapping A -> B (input is tokenA)
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpoolData.tokenMintA,
+      client,
+      whirlpool.getTokenAInfo().address,
       tokenOwnerAccountA,
       mintA.tokenProgram,
       'wrap',
       quote.estimatedAmountIn, // handleWsolAta will check existing balance and only wrap deficit
     );
     // Create ATA for output token if needed
-    await handleWsolAta(builder, ctx, whirlpoolData.tokenMintB, tokenOwnerAccountB, mintB.tokenProgram, 'receive');
+    await handleWsolAta(
+      builder,
+      client,
+      whirlpool.getTokenBInfo().address,
+      tokenOwnerAccountB,
+      mintB.tokenProgram,
+      'receive',
+    );
   } else {
     // Swapping B -> A (input is tokenB)
     // Create ATA for output token if needed
-    await handleWsolAta(builder, ctx, whirlpoolData.tokenMintA, tokenOwnerAccountA, mintA.tokenProgram, 'receive');
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpoolData.tokenMintB,
+      client,
+      whirlpool.getTokenAInfo().address,
+      tokenOwnerAccountA,
+      mintA.tokenProgram,
+      'receive',
+    );
+    await handleWsolAta(
+      builder,
+      client,
+      whirlpool.getTokenBInfo().address,
       tokenOwnerAccountB,
       mintB.tokenProgram,
       'wrap',
@@ -177,14 +189,14 @@ async function executeSwap(
 
   // Add swap instruction
   builder.addInstruction(
-    WhirlpoolIx.swapIx(ctx.program, {
+    WhirlpoolIx.swapIx(client.getContext().program, {
       ...quote,
       whirlpool: whirlpoolPubkey,
-      tokenAuthority: ctx.wallet.publicKey,
+      tokenAuthority: client.getContext().wallet.publicKey,
       tokenOwnerAccountA,
-      tokenVaultA: whirlpoolData.tokenVaultA,
+      tokenVaultA: whirlpool.getTokenVaultAInfo().address,
       tokenOwnerAccountB,
-      tokenVaultB: whirlpoolData.tokenVaultB,
+      tokenVaultB: whirlpool.getTokenVaultBInfo().address,
       oracle: oraclePda.publicKey,
     }),
   );
@@ -192,11 +204,20 @@ async function executeSwap(
   // Auto-unwrap WSOL output token to native SOL
   // Only unwrap the OUTPUT token (not the input which may have just been wrapped)
   logger.info('Auto-unwrapping WSOL output (if any) back to native SOL');
-  const swapOutputMint = aToB ? whirlpoolData.tokenMintB : whirlpoolData.tokenMintA;
+  const swapOutputMint = aToB ? whirlpool.getTokenBInfo().address : whirlpool.getTokenAInfo().address;
   const swapOutputAccount = aToB ? tokenOwnerAccountB : tokenOwnerAccountA;
   const swapOutputProgram = aToB ? mintB.tokenProgram : mintA.tokenProgram;
 
-  await handleWsolAta(builder, ctx, swapOutputMint, swapOutputAccount, swapOutputProgram, 'unwrap', undefined, solana);
+  await handleWsolAta(
+    builder,
+    client,
+    swapOutputMint,
+    swapOutputAccount,
+    swapOutputProgram,
+    'unwrap',
+    undefined,
+    solana,
+  );
 
   // Build, simulate, and send transaction
   const txPayload = await builder.build();

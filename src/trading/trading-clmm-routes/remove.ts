@@ -4,6 +4,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { removeLiquidity as meteoraRemoveLiquidity } from '../../connectors/meteora/clmm-routes/removeLiquidity';
+import { removeLiquidity as orcaRemoveLiquidity } from '../../connectors/orca/clmm-routes/removeLiquidity';
 import { removeLiquidity as pancakeswapRemoveLiquidity } from '../../connectors/pancakeswap/clmm-routes/removeLiquidity';
 import { removeLiquidity as pancakeswapSolRemoveLiquidity } from '../../connectors/pancakeswap-sol/clmm-routes/removeLiquidity';
 import { removeLiquidity as raydiumRemoveLiquidity } from '../../connectors/raydium/clmm-routes/removeLiquidity';
@@ -42,7 +43,7 @@ function parseChainNetwork(chainNetwork: string): { chain: string; network: stri
 // Unified schema with connector field
 const UnifiedRemoveLiquidityRequest = Type.Object({
   connector: Type.String({
-    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)',
+    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)',
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -121,6 +122,9 @@ export const removeLiquidityRoute: FastifyPluginAsync = async (fastify) => {
               positionAddress,
               percentageToRemove,
             );
+
+          case 'orca':
+            return await orcaRemoveLiquidity(fastify, network, walletAddress, positionAddress, percentageToRemove, 1);
 
           default:
             throw fastify.httpErrors.badRequest(`Unsupported connector: ${connector}`);

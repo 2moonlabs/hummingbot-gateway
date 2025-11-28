@@ -1,9 +1,32 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 
-import { GetPoolInfoRequestType } from '../../../schemas/clmm-schema';
+import { GetPoolInfoRequestType, PoolInfo } from '../../../schemas/clmm-schema';
 import { logger } from '../../../services/logger';
 import { Orca } from '../orca';
 import { OrcaClmmGetPoolInfoRequest, OrcaPoolInfo, OrcaPoolInfoSchema } from '../schemas';
+
+export async function getPoolInfo(
+  fastify: FastifyInstance,
+  network: string,
+  poolAddress: string,
+): Promise<PoolInfo | OrcaPoolInfo> {
+  const orca = await Orca.getInstance(network);
+  if (!orca) {
+    throw fastify.httpErrors.serviceUnavailable('Orca service unavailable');
+  }
+
+  if (!poolAddress) {
+    throw fastify.httpErrors.badRequest('Pool address is required');
+  }
+
+  // Fetch pool info directly from RPC
+  const poolInfo = (await orca.getPoolInfo(poolAddress)) as OrcaPoolInfo;
+  if (!poolInfo) {
+    throw fastify.httpErrors.notFound(`Pool not found: ${poolAddress}`);
+  }
+
+  return poolInfo;
+}
 
 export const poolInfoRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
@@ -25,13 +48,7 @@ export const poolInfoRoute: FastifyPluginAsync = async (fastify) => {
       try {
         const { poolAddress } = request.query;
         const network = request.query.network;
-
-        const orca = await Orca.getInstance(network);
-        if (!orca) {
-          throw fastify.httpErrors.serviceUnavailable('Orca service unavailable');
-        }
-
-        return (await orca.getPoolInfo(poolAddress)) as OrcaPoolInfo;
+        return (await getPoolInfo(fastify, network, poolAddress)) as OrcaPoolInfo;
       } catch (e) {
         logger.error(e);
         if (e.statusCode) {

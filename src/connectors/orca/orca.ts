@@ -71,7 +71,7 @@ export class Orca {
       const provider = new AnchorProvider(this.solana.connection, wallet, {
         commitment: 'processed',
       });
-      this.whirlpoolContextMap[walletAddress] = WhirlpoolContext.withProvider(provider, ORCA_WHIRLPOOL_PROGRAM_ID);
+      this.whirlpoolContextMap[walletAddress] = WhirlpoolContext.withProvider(provider);
     }
     return this.whirlpoolContextMap[walletAddress];
   }
@@ -93,8 +93,13 @@ export class Orca {
    */
   async getPools(limit?: number, tokenSymbolA?: string, tokenSymbolB?: string): Promise<OrcaPoolInfo[]> {
     try {
-      const network = this.solana.network === 'mainnet-beta' ? 'solana' : 'solana-devnet';
-      const baseUrl = `https://api.orca.so/v2/${network}/pools/search`;
+      let baseUrl: string;
+      if (this.solana.network === 'mainnet-beta') {
+        baseUrl = 'https://api.orca.so/v2/solana/pools/search';
+      } else {
+        baseUrl = 'https://api.devnet.orca.so/v2/solana/pools/search';
+      }
+
       const params = new URLSearchParams();
 
       // Build search query from token symbols
@@ -166,8 +171,12 @@ export class Orca {
    */
   async getPoolInfo(poolAddress: string): Promise<OrcaPoolInfo | null> {
     try {
-      const network = this.solana.network === 'mainnet-beta' ? 'solana' : 'solana-devnet';
-      const baseUrl = `https://api.orca.so/v2/${network}/pools/search`;
+      let baseUrl: string;
+      if (this.solana.network === 'mainnet-beta') {
+        baseUrl = 'https://api.orca.so/v2/solana/pools/search';
+      } else {
+        baseUrl = 'https://api.devnet.orca.so/v2/solana/pools/search';
+      }
       const params = new URLSearchParams();
 
       // Search by pool address
@@ -273,10 +282,10 @@ export class Orca {
         address(walletAddress),
       )) as any;
 
-      const ctx = await this.getWhirlpoolContextForWallet(walletAddress);
+      const client = await this.getWhirlpoolClientForWallet(walletAddress);
 
       for (const position of positionsForOwner) {
-        positions.push(await getPositionDetails(ctx, address(position.address)));
+        positions.push(await getPositionDetails(client, address(position.address)));
       }
 
       return positions;
@@ -294,8 +303,8 @@ export class Orca {
    */
   async getPositionInfo(positionAddress: string, walletAddress: string): Promise<PositionInfo | null> {
     try {
-      const ctx = await this.getWhirlpoolContextForWallet(walletAddress);
-      const positionInfo = await getPositionDetails(ctx, positionAddress);
+      const client = await this.getWhirlpoolClientForWallet(walletAddress);
+      const positionInfo = await getPositionDetails(client, positionAddress);
       return positionInfo;
     } catch (error) {
       logger.error('Error getting position info:', error);

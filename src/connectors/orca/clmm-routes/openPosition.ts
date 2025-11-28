@@ -6,8 +6,10 @@ import {
   TickUtil,
   WhirlpoolIx,
   increaseLiquidityQuoteByInputTokenWithParams,
-  WhirlpoolContext,
   TokenExtensionUtil,
+  WhirlpoolClient,
+  Whirlpool,
+  IGNORE_CACHE,
 } from '@orca-so/whirlpools-sdk';
 import { Static } from '@sinclair/typebox';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
@@ -28,34 +30,36 @@ import { OrcaClmmOpenPositionRequest } from '../schemas';
  */
 async function initializeTickArrays(
   builder: TransactionBuilder,
-  ctx: WhirlpoolContext,
-  whirlpool: { tickSpacing: number },
+  client: WhirlpoolClient,
+  whirlpool: Whirlpool,
   whirlpoolPubkey: PublicKey,
   lowerTickIndex: number,
   upperTickIndex: number,
 ): Promise<void> {
+  await whirlpool.refreshData();
+
   const lowerTickArrayPda = PDAUtil.getTickArrayFromTickIndex(
     lowerTickIndex,
-    whirlpool.tickSpacing,
+    whirlpool.getData().tickSpacing,
     whirlpoolPubkey,
     ORCA_WHIRLPOOL_PROGRAM_ID,
   );
   const upperTickArrayPda = PDAUtil.getTickArrayFromTickIndex(
     upperTickIndex,
-    whirlpool.tickSpacing,
+    whirlpool.getData().tickSpacing,
     whirlpoolPubkey,
     ORCA_WHIRLPOOL_PROGRAM_ID,
   );
 
-  const lowerTickArray = await ctx.fetcher.getTickArray(lowerTickArrayPda.publicKey);
-  const upperTickArray = await ctx.fetcher.getTickArray(upperTickArrayPda.publicKey);
+  const lowerTickArray = await client.getFetcher().getTickArray(lowerTickArrayPda.publicKey);
+  const upperTickArray = await client.getFetcher().getTickArray(upperTickArrayPda.publicKey);
 
   if (!lowerTickArray) {
     builder.addInstruction(
-      WhirlpoolIx.initDynamicTickArrayIx(ctx.program, {
+      WhirlpoolIx.initDynamicTickArrayIx(client.getContext().program, {
         whirlpool: whirlpoolPubkey,
-        funder: ctx.wallet.publicKey,
-        startTick: TickUtil.getStartTickIndex(lowerTickIndex, whirlpool.tickSpacing),
+        funder: client.getContext().wallet.publicKey,
+        startTick: TickUtil.getStartTickIndex(lowerTickIndex, whirlpool.getData().tickSpacing),
         tickArrayPda: lowerTickArrayPda,
       }),
     );
@@ -63,10 +67,10 @@ async function initializeTickArrays(
 
   if (!upperTickArray && !upperTickArrayPda.publicKey.equals(lowerTickArrayPda.publicKey)) {
     builder.addInstruction(
-      WhirlpoolIx.initDynamicTickArrayIx(ctx.program, {
+      WhirlpoolIx.initDynamicTickArrayIx(client.getContext().program, {
         whirlpool: whirlpoolPubkey,
-        funder: ctx.wallet.publicKey,
-        startTick: TickUtil.getStartTickIndex(upperTickIndex, whirlpool.tickSpacing),
+        funder: client.getContext().wallet.publicKey,
+        startTick: TickUtil.getStartTickIndex(upperTickIndex, whirlpool.getData().tickSpacing),
         tickArrayPda: upperTickArrayPda,
       }),
     );
@@ -75,11 +79,12 @@ async function initializeTickArrays(
 
 /**
  * Add liquidity instructions to an open position transaction
+ * @param quote - Pre-calculated liquidity quote (calculated in openPosition to avoid redundancy)
  */
 async function addLiquidityInstructions(
   builder: TransactionBuilder,
-  ctx: WhirlpoolContext,
-  whirlpool: any,
+  client: WhirlpoolClient,
+  whirlpool: Whirlpool,
   whirlpoolPubkey: PublicKey,
   positionPda: { publicKey: PublicKey },
   positionMintKeypair: Keypair,
@@ -87,33 +92,8 @@ async function addLiquidityInstructions(
   mintB: any,
   lowerTickIndex: number,
   upperTickIndex: number,
-  baseTokenAmount: number,
-  quoteTokenAmount: number,
-  slippage: number,
+  quote: any,
 ): Promise<{ baseTokenAmountAdded: number; quoteTokenAmountAdded: number }> {
-  // Determine which token to use as input (prefer base if both provided)
-  const useBaseToken = baseTokenAmount > 0;
-  const inputTokenAmount = useBaseToken ? baseTokenAmount : quoteTokenAmount;
-  const inputTokenMint = useBaseToken ? whirlpool.tokenMintA : whirlpool.tokenMintB;
-  const inputTokenDecimals = useBaseToken ? mintA.decimals : mintB.decimals;
-
-  // Convert input amount to BN
-  const amount = new BN(Math.floor(inputTokenAmount * Math.pow(10, inputTokenDecimals)));
-
-  // Get increase liquidity quote
-  const quote = increaseLiquidityQuoteByInputTokenWithParams({
-    inputTokenAmount: amount,
-    inputTokenMint,
-    sqrtPrice: whirlpool.sqrtPrice,
-    tickCurrentIndex: whirlpool.tickCurrentIndex,
-    tickLowerIndex: lowerTickIndex,
-    tickUpperIndex: upperTickIndex,
-    tokenExtensionCtx: await TokenExtensionUtil.buildTokenExtensionContext(ctx.fetcher, whirlpool),
-    tokenMintA: whirlpool.tokenMintA,
-    tokenMintB: whirlpool.tokenMintB,
-    slippageTolerance: Percentage.fromDecimal(new Decimal(slippage)),
-  });
-
   const baseTokenAmountAdded = Number(quote.tokenEstA) / Math.pow(10, mintA.decimals);
   const quoteTokenAmountAdded = Number(quote.tokenEstB) / Math.pow(10, mintB.decimals);
 
@@ -123,46 +103,46 @@ async function addLiquidityInstructions(
 
   // Get token accounts
   const tokenOwnerAccountA = getAssociatedTokenAddressSync(
-    whirlpool.tokenMintA,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenAInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintA.tokenProgram,
   );
   const tokenOwnerAccountB = getAssociatedTokenAddressSync(
-    whirlpool.tokenMintB,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenBInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintB.tokenProgram,
   );
 
-  // Note: WSOL wrapping is now handled BEFORE openPosition instruction
-  // This section is kept for reference but instructions are not added here
-
   // Get tick array pubkeys for the position
   const { lower: lowerTickArrayPubkey, upper: upperTickArrayPubkey } = getTickArrayPubkeys(
     { tickLowerIndex: lowerTickIndex, tickUpperIndex: upperTickIndex },
-    whirlpool,
+    whirlpool.getData(),
     whirlpoolPubkey,
   );
 
   // Add increase liquidity instruction
   builder.addInstruction(
-    WhirlpoolIx.increaseLiquidityV2Ix(ctx.program, {
+    WhirlpoolIx.increaseLiquidityV2Ix(client.getContext().program, {
       liquidityAmount: quote.liquidityAmount,
       tokenMaxA: quote.tokenMaxA,
       tokenMaxB: quote.tokenMaxB,
       whirlpool: whirlpoolPubkey,
       position: positionPda.publicKey,
-      positionAuthority: ctx.wallet.publicKey,
-      positionTokenAccount: getAssociatedTokenAddressSync(positionMintKeypair.publicKey, ctx.wallet.publicKey),
-      tokenMintA: whirlpool.tokenMintA,
-      tokenMintB: whirlpool.tokenMintB,
+      positionAuthority: client.getContext().wallet.publicKey,
+      positionTokenAccount: getAssociatedTokenAddressSync(
+        positionMintKeypair.publicKey,
+        client.getContext().wallet.publicKey,
+      ),
+      tokenMintA: whirlpool.getTokenAInfo().address,
+      tokenMintB: whirlpool.getTokenBInfo().address,
       tokenProgramA: mintA.tokenProgram,
       tokenProgramB: mintB.tokenProgram,
       tokenOwnerAccountA,
       tokenOwnerAccountB,
-      tokenVaultA: whirlpool.tokenVaultA,
-      tokenVaultB: whirlpool.tokenVaultB,
+      tokenVaultA: whirlpool.getTokenVaultAInfo().address,
+      tokenVaultB: whirlpool.getTokenVaultBInfo().address,
       tickArrayLower: lowerTickArrayPubkey,
       tickArrayUpper: upperTickArrayPubkey,
     }),
@@ -171,7 +151,7 @@ async function addLiquidityInstructions(
   return { baseTokenAmountAdded, quoteTokenAmountAdded };
 }
 
-async function openPosition(
+export async function openPosition(
   fastify: FastifyInstance,
   network: string,
   address: string,
@@ -194,18 +174,20 @@ async function openPosition(
   const solana = await Solana.getInstance(network);
   const orca = await Orca.getInstance(network);
   const wallet = await solana.getWallet(address);
-  const ctx = await orca.getWhirlpoolContextForWallet(address);
+  const client = await orca.getWhirlpoolClientForWallet(address);
   const whirlpoolPubkey = new PublicKey(poolAddress);
 
   // Fetch whirlpool data
-  const whirlpool = await ctx.fetcher.getPool(whirlpoolPubkey);
+  const whirlpool = await client.getPool(whirlpoolPubkey, IGNORE_CACHE);
   if (!whirlpool) {
     throw fastify.httpErrors.notFound(`Whirlpool not found: ${poolAddress}`);
   }
 
+  await whirlpool.refreshData();
+
   // Fetch token mint info
-  const mintA = await ctx.fetcher.getMintInfo(whirlpool.tokenMintA);
-  const mintB = await ctx.fetcher.getMintInfo(whirlpool.tokenMintB);
+  const mintA = await client.getFetcher().getMintInfo(whirlpool.getTokenAInfo().address);
+  const mintB = await client.getFetcher().getMintInfo(whirlpool.getTokenBInfo().address);
   if (!mintA || !mintB) {
     throw fastify.httpErrors.notFound('Token mint not found');
   }
@@ -215,13 +197,13 @@ async function openPosition(
     new Decimal(lowerPrice),
     mintA.decimals,
     mintB.decimals,
-    whirlpool.tickSpacing,
+    whirlpool.getData().tickSpacing,
   );
   const upperTickIndex = PriceMath.priceToInitializableTickIndex(
     new Decimal(upperPrice),
     mintA.decimals,
     mintB.decimals,
-    whirlpool.tickSpacing,
+    whirlpool.getData().tickSpacing,
   );
 
   // Validate tick indices
@@ -230,35 +212,83 @@ async function openPosition(
   }
 
   // Build transaction
-  const builder = new TransactionBuilder(ctx.connection, ctx.wallet);
+  const builder = new TransactionBuilder(client.getContext().connection, client.getContext().wallet);
 
   // Initialize tick arrays if needed
-  await initializeTickArrays(builder, ctx, whirlpool, whirlpoolPubkey, lowerTickIndex, upperTickIndex);
+  await initializeTickArrays(builder, client, whirlpool, whirlpoolPubkey, lowerTickIndex, upperTickIndex);
 
   // If we're adding liquidity, prepare WSOL wrapping FIRST (before opening position)
   let baseTokenAmountAdded = 0;
   let quoteTokenAmountAdded = 0;
+  let quote: any;
 
   if (shouldAddLiquidity) {
     // Calculate liquidity quote to know how much WSOL we need
-    const useBaseToken = baseTokenAmount > 0;
-    const inputTokenAmount = useBaseToken ? baseTokenAmount : quoteTokenAmount;
-    const inputTokenMint = useBaseToken ? whirlpool.tokenMintA : whirlpool.tokenMintB;
-    const inputTokenDecimals = useBaseToken ? mintA.decimals : mintB.decimals;
-    const amount = new BN(Math.floor(inputTokenAmount * Math.pow(10, inputTokenDecimals)));
+    // Use the same logic as addLiquidityInstructions to respect both token limits
+    const tokenExtensionCtx = await TokenExtensionUtil.buildTokenExtensionContext(
+      client.getFetcher(),
+      whirlpool.getData(),
+    );
+    const slippageTolerance = Percentage.fromDecimal(new Decimal(slippage));
 
-    const quote = increaseLiquidityQuoteByInputTokenWithParams({
-      inputTokenAmount: amount,
-      inputTokenMint,
-      sqrtPrice: whirlpool.sqrtPrice,
-      tickCurrentIndex: whirlpool.tickCurrentIndex,
-      tickLowerIndex: lowerTickIndex,
-      tickUpperIndex: upperTickIndex,
-      tokenExtensionCtx: await TokenExtensionUtil.buildTokenExtensionContext(ctx.fetcher, whirlpool),
-      tokenMintA: whirlpool.tokenMintA,
-      tokenMintB: whirlpool.tokenMintB,
-      slippageTolerance: Percentage.fromDecimal(new Decimal(slippage)),
-    });
+    // If both amounts provided, get quotes for both scenarios and pick the valid one
+    if (baseTokenAmount && baseTokenAmount > 0 && quoteTokenAmount && quoteTokenAmount > 0) {
+      const baseAmount = new BN(Math.floor(baseTokenAmount * Math.pow(10, mintA.decimals)));
+      const quoteFromBase = increaseLiquidityQuoteByInputTokenWithParams({
+        inputTokenAmount: baseAmount,
+        inputTokenMint: whirlpool.getTokenAInfo().address,
+        sqrtPrice: whirlpool.getData().sqrtPrice,
+        tickCurrentIndex: whirlpool.getData().tickCurrentIndex,
+        tickLowerIndex: lowerTickIndex,
+        tickUpperIndex: upperTickIndex,
+        tokenExtensionCtx,
+        tokenMintA: whirlpool.getTokenAInfo().address,
+        tokenMintB: whirlpool.getTokenBInfo().address,
+        slippageTolerance,
+      });
+
+      const quoteAmount = new BN(Math.floor(quoteTokenAmount * Math.pow(10, mintB.decimals)));
+      const quoteFromQuote = increaseLiquidityQuoteByInputTokenWithParams({
+        inputTokenAmount: quoteAmount,
+        inputTokenMint: whirlpool.getTokenBInfo().address,
+        sqrtPrice: whirlpool.getData().sqrtPrice,
+        tickCurrentIndex: whirlpool.getData().tickCurrentIndex,
+        tickLowerIndex: lowerTickIndex,
+        tickUpperIndex: upperTickIndex,
+        tokenExtensionCtx,
+        tokenMintA: whirlpool.getTokenAInfo().address,
+        tokenMintB: whirlpool.getTokenBInfo().address,
+        slippageTolerance,
+      });
+
+      // Pick the quote with LESS liquidity to respect both token limits
+      // This matches quotePosition logic and ensures we never exceed user's provided amounts
+      const baseLiquidity = quoteFromBase.liquidityAmount;
+      const quoteLiquidity = quoteFromQuote.liquidityAmount;
+      const baseLimited = baseLiquidity.lt(quoteLiquidity);
+
+      quote = baseLimited ? quoteFromBase : quoteFromQuote;
+    } else {
+      // Only one amount provided
+      const useBaseToken = (baseTokenAmount || 0) > 0;
+      const inputTokenAmount = useBaseToken ? baseTokenAmount! : quoteTokenAmount!;
+      const inputTokenMint = useBaseToken ? whirlpool.getTokenAInfo().address : whirlpool.getTokenBInfo().address;
+      const inputTokenDecimals = useBaseToken ? mintA.decimals : mintB.decimals;
+      const amount = new BN(Math.floor(inputTokenAmount * Math.pow(10, inputTokenDecimals)));
+
+      quote = increaseLiquidityQuoteByInputTokenWithParams({
+        inputTokenAmount: amount,
+        inputTokenMint,
+        sqrtPrice: whirlpool.getData().sqrtPrice,
+        tickCurrentIndex: whirlpool.getData().tickCurrentIndex,
+        tickLowerIndex: lowerTickIndex,
+        tickUpperIndex: upperTickIndex,
+        tokenExtensionCtx,
+        tokenMintA: whirlpool.getTokenAInfo().address,
+        tokenMintB: whirlpool.getTokenBInfo().address,
+        slippageTolerance,
+      });
+    }
 
     baseTokenAmountAdded = Number(quote.tokenEstA) / Math.pow(10, mintA.decimals);
     quoteTokenAmountAdded = Number(quote.tokenEstB) / Math.pow(10, mintB.decimals);
@@ -269,14 +299,14 @@ async function openPosition(
 
     // Get token accounts
     const tokenOwnerAccountA = getAssociatedTokenAddressSync(
-      whirlpool.tokenMintA,
-      ctx.wallet.publicKey,
+      whirlpool.getTokenAInfo().address,
+      client.getContext().wallet.publicKey,
       undefined,
       mintA.tokenProgram,
     );
     const tokenOwnerAccountB = getAssociatedTokenAddressSync(
-      whirlpool.tokenMintB,
-      ctx.wallet.publicKey,
+      whirlpool.getTokenBInfo().address,
+      client.getContext().wallet.publicKey,
       undefined,
       mintB.tokenProgram,
     );
@@ -291,11 +321,11 @@ async function openPosition(
 
     // Add rent buffer to WSOL wrapping amounts if WSOL is one of the tokens
     const tokenMaxAWithBuffer =
-      whirlpool.tokenMintA.toString() === 'So11111111111111111111111111111111111111112'
+      whirlpool.getTokenAInfo().address.toString() === 'So11111111111111111111111111111111111111112'
         ? quote.tokenMaxA.add(new BN(RENT_BUFFER_LAMPORTS))
         : quote.tokenMaxA;
     const tokenMaxBWithBuffer =
-      whirlpool.tokenMintB.toString() === 'So11111111111111111111111111111111111111112'
+      whirlpool.getTokenBInfo().address.toString() === 'So11111111111111111111111111111111111111112'
         ? quote.tokenMaxB.add(new BN(RENT_BUFFER_LAMPORTS))
         : quote.tokenMaxB;
 
@@ -305,8 +335,8 @@ async function openPosition(
 
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpool.tokenMintA,
+      client,
+      whirlpool.getTokenAInfo().address,
       tokenOwnerAccountA,
       mintA.tokenProgram,
       'wrap',
@@ -314,8 +344,8 @@ async function openPosition(
     );
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpool.tokenMintB,
+      client,
+      whirlpool.getTokenBInfo().address,
       tokenOwnerAccountB,
       mintB.tokenProgram,
       'wrap',
@@ -333,26 +363,29 @@ async function openPosition(
   // Position NFT token program is independent of pool's token programs
   const metadataPda = PDAUtil.getPositionMetadata(positionMintKeypair.publicKey);
   builder.addInstruction(
-    WhirlpoolIx.openPositionWithMetadataIx(ctx.program, {
-      funder: ctx.wallet.publicKey,
+    WhirlpoolIx.openPositionWithMetadataIx(client.getContext().program, {
+      funder: client.getContext().wallet.publicKey,
       whirlpool: whirlpoolPubkey,
       tickLowerIndex: lowerTickIndex,
       tickUpperIndex: upperTickIndex,
-      owner: ctx.wallet.publicKey,
+      owner: client.getContext().wallet.publicKey,
       positionMintAddress: positionMintKeypair.publicKey,
       positionPda,
-      positionTokenAccount: getAssociatedTokenAddressSync(positionMintKeypair.publicKey, ctx.wallet.publicKey),
+      positionTokenAccount: getAssociatedTokenAddressSync(
+        positionMintKeypair.publicKey,
+        client.getContext().wallet.publicKey,
+      ),
       metadataPda,
     }),
   );
 
   builder.addSigner(positionMintKeypair);
 
-  // Add liquidity instructions (WSOL already wrapped above)
+  // Add liquidity instructions (WSOL already wrapped above, quote already calculated)
   if (shouldAddLiquidity) {
     const result = await addLiquidityInstructions(
       builder,
-      ctx,
+      client,
       whirlpool,
       whirlpoolPubkey,
       positionPda,
@@ -361,9 +394,7 @@ async function openPosition(
       mintB,
       lowerTickIndex,
       upperTickIndex,
-      baseTokenAmount || 0,
-      quoteTokenAmount || 0,
-      slippage,
+      quote!,
     );
     baseTokenAmountAdded = result.baseTokenAmountAdded;
     quoteTokenAmountAdded = result.quoteTokenAmountAdded;
@@ -371,22 +402,22 @@ async function openPosition(
     // Auto-unwrap any leftover WSOL (from rent buffer + slippage savings)
     logger.info('Auto-unwrapping leftover WSOL (if any) back to native SOL');
     const tokenOwnerAccountA = getAssociatedTokenAddressSync(
-      whirlpool.tokenMintA,
-      ctx.wallet.publicKey,
+      whirlpool.getTokenAInfo().address,
+      client.getContext().wallet.publicKey,
       undefined,
       mintA.tokenProgram,
     );
     const tokenOwnerAccountB = getAssociatedTokenAddressSync(
-      whirlpool.tokenMintB,
-      ctx.wallet.publicKey,
+      whirlpool.getTokenBInfo().address,
+      client.getContext().wallet.publicKey,
       undefined,
       mintB.tokenProgram,
     );
 
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpool.tokenMintA,
+      client,
+      whirlpool.getTokenAInfo().address,
       tokenOwnerAccountA,
       mintA.tokenProgram,
       'unwrap',
@@ -395,8 +426,8 @@ async function openPosition(
     );
     await handleWsolAta(
       builder,
-      ctx,
-      whirlpool.tokenMintB,
+      client,
+      whirlpool.getTokenBInfo().address,
       tokenOwnerAccountB,
       mintB.tokenProgram,
       'unwrap',

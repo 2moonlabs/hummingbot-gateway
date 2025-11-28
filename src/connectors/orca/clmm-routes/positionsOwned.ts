@@ -1,14 +1,39 @@
 import { Type } from '@sinclair/typebox';
 import { PublicKey } from '@solana/web3.js';
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 
 import { getSolanaChainConfig } from '../../../chains/solana/solana.config';
 import { GetPositionsOwnedRequestType, PositionInfo, PositionInfoSchema } from '../../../schemas/clmm-schema';
 import { logger } from '../../../services/logger';
 import { Orca } from '../orca';
 import { OrcaClmmGetPositionsOwnedRequest } from '../schemas';
-// Using Fastify's native error handling
+
 const INVALID_SOLANA_ADDRESS_MESSAGE = (address: string) => `Invalid Solana address: ${address}`;
+
+export async function getPositionsOwned(
+  fastify: FastifyInstance,
+  network: string,
+  walletAddress?: string,
+): Promise<PositionInfo[]> {
+  const orca = await Orca.getInstance(network);
+
+  // Get wallet address - use provided or default
+  const walletAddressToUse = walletAddress || getSolanaChainConfig().defaultWallet;
+
+  // Validate wallet address
+  try {
+    new PublicKey(walletAddressToUse);
+  } catch (error) {
+    throw fastify.httpErrors.badRequest(INVALID_SOLANA_ADDRESS_MESSAGE('wallet'));
+  }
+
+  logger.info(`Fetching all Orca positions for wallet ${walletAddressToUse.slice(0, 8)}...`);
+
+  const positions = await orca.getPositionsForWalletAddress(walletAddressToUse);
+
+  logger.info(`Found ${positions.length} Orca position(s) for wallet ${walletAddressToUse.slice(0, 8)}...`);
+  return positions;
+}
 
 export const positionsOwnedRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
@@ -28,23 +53,8 @@ export const positionsOwnedRoute: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       try {
-        const network = request.query.network;
-        const orca = await Orca.getInstance(network);
-
-        // Get wallet address - use provided or default
-        const walletAddressToUse = request.query.walletAddress || getSolanaChainConfig().defaultWallet;
-
-        // Validate addresses first
-        try {
-          new PublicKey(walletAddressToUse);
-        } catch (error) {
-          const invalidAddress = error.message.includes(walletAddressToUse) ? 'pool' : 'wallet';
-          throw fastify.httpErrors.badRequest(INVALID_SOLANA_ADDRESS_MESSAGE(invalidAddress));
-        }
-
-        const positions = await orca.getPositionsForWalletAddress(walletAddressToUse);
-
-        return positions;
+        const { network, walletAddress } = request.query;
+        return await getPositionsOwned(fastify, network, walletAddress);
       } catch (e) {
         logger.error(e);
         if (e.statusCode) {

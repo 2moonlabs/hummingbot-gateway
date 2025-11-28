@@ -7,11 +7,9 @@ import {
   increaseLiquidityQuoteA,
   increaseLiquidityQuoteB,
   isInitializedWithAdaptiveFee,
-  positionStatus,
   priceToTickIndex,
   sqrtPriceToPrice,
   swapQuoteByInputToken,
-  tickIndexToSqrtPrice,
 } from '@orca-so/whirlpools-core';
 import {
   ORCA_WHIRLPOOL_PROGRAM_ID,
@@ -20,7 +18,9 @@ import {
   PoolUtil,
   TickUtil,
   collectFeesQuote as collectFeesQuoteLegacy,
-  WhirlpoolContext,
+  WhirlpoolClient,
+  WhirlpoolData,
+  IGNORE_CACHE,
 } from '@orca-so/whirlpools-sdk';
 import type {
   GetAccountInfoApi,
@@ -48,69 +48,71 @@ import { logger } from '../../services/logger';
  * Extracts detailed position information including fees, token amounts, and pricing.
  * This function fetches all necessary on-chain data and calculates derived values.
  *
- * @param {WhirlpoolContext} ctx - The Whirlpool context with fetcher
+ * @param {WhirlpoolClient} client - The Whirlpool client
  * @param {string} positionAddress - The position PDA address
  * @returns {Promise<PositionInfo>} - A promise that resolves to detailed position information.
  */
-export async function getPositionDetails(ctx: WhirlpoolContext, positionAddress: string): Promise<PositionInfo> {
+export async function getPositionDetails(client: WhirlpoolClient, positionAddress: string): Promise<PositionInfo> {
   const positionPubkey = new PublicKey(positionAddress);
 
   // Use legacy SDK's fetcher which handles position PDA addresses directly
-  const position = await ctx.fetcher.getPosition(positionPubkey);
+  const position = await client.getPosition(positionPubkey, IGNORE_CACHE);
   if (!position) {
     throw new Error(`Position not found: ${positionAddress}`);
   }
 
-  const whirlpool = await ctx.fetcher.getPool(position.whirlpool);
+  await position.refreshData();
+
+  const whirlpool = position.getWhirlpoolData();
+  const positionData = position.getData();
+
   if (!whirlpool) {
     throw new Error(`Whirlpool not found for position: ${positionAddress}`);
   }
 
-  // const currentEpoch = await ctx.connection.getEpochInfo();
-
-  const mintA = await ctx.fetcher.getMintInfo(whirlpool.tokenMintA);
-  const mintB = await ctx.fetcher.getMintInfo(whirlpool.tokenMintB);
+  const mintA = await client.getFetcher().getMintInfo(whirlpool.tokenMintA);
+  const mintB = await client.getFetcher().getMintInfo(whirlpool.tokenMintB);
 
   if (!mintA || !mintB) {
     throw new Error('Failed to fetch mint info');
   }
 
-  const lowerTickArrayStartIndex = TickUtil.getStartTickIndex(position.tickLowerIndex, whirlpool.tickSpacing);
-  const upperTickArrayStartIndex = TickUtil.getStartTickIndex(position.tickUpperIndex, whirlpool.tickSpacing);
+  const lowerTickArrayStartIndex = TickUtil.getStartTickIndex(positionData.tickLowerIndex, whirlpool.tickSpacing);
+  const upperTickArrayStartIndex = TickUtil.getStartTickIndex(positionData.tickUpperIndex, whirlpool.tickSpacing);
 
   const lowerTickArrayPda = PDAUtil.getTickArray(
     ORCA_WHIRLPOOL_PROGRAM_ID,
-    position.whirlpool,
+    positionData.whirlpool,
     lowerTickArrayStartIndex,
   );
   const upperTickArrayPda = PDAUtil.getTickArray(
     ORCA_WHIRLPOOL_PROGRAM_ID,
-    position.whirlpool,
+    positionData.whirlpool,
     upperTickArrayStartIndex,
   );
 
   const [lowerTickArray, upperTickArray] = await Promise.all([
-    ctx.fetcher.getTickArray(lowerTickArrayPda.publicKey),
-    ctx.fetcher.getTickArray(upperTickArrayPda.publicKey),
+    client.getFetcher().getTickArray(lowerTickArrayPda.publicKey),
+    client.getFetcher().getTickArray(upperTickArrayPda.publicKey),
   ]);
 
   if (!lowerTickArray || !upperTickArray) {
     throw new Error('Failed to fetch tick arrays');
   }
 
-  const lowerTickOffset = (position.tickLowerIndex - lowerTickArrayStartIndex) / whirlpool.tickSpacing;
-  const upperTickOffset = (position.tickUpperIndex - upperTickArrayStartIndex) / whirlpool.tickSpacing;
+  const lowerTickOffset = (positionData.tickLowerIndex - lowerTickArrayStartIndex) / whirlpool.tickSpacing;
+  const upperTickOffset = (positionData.tickUpperIndex - upperTickArrayStartIndex) / whirlpool.tickSpacing;
 
   const lowerTick = lowerTickArray.ticks[lowerTickOffset];
   const upperTick = upperTickArray.ticks[upperTickOffset];
 
   // Get current epoch for transfer fee calculations
-  const currentEpoch = await ctx.connection.getEpochInfo();
+  const currentEpoch = await client.getContext().connection.getEpochInfo();
 
   // Calculate fees owed using legacy SDK
   const feesQuote = collectFeesQuoteLegacy({
     whirlpool,
-    position,
+    position: positionData,
     tickLower: lowerTick,
     tickUpper: upperTick,
     tokenExtensionCtx: {
@@ -122,28 +124,28 @@ export async function getPositionDetails(ctx: WhirlpoolContext, positionAddress:
 
   // Use legacy SDK utilities for calculations
   const tokenAmounts = PoolUtil.getTokenAmountsFromLiquidity(
-    position.liquidity,
+    positionData.liquidity,
     whirlpool.sqrtPrice,
-    PriceMath.tickIndexToSqrtPriceX64(position.tickLowerIndex),
-    PriceMath.tickIndexToSqrtPriceX64(position.tickUpperIndex),
-    true, // round up
+    PriceMath.tickIndexToSqrtPriceX64(positionData.tickLowerIndex),
+    PriceMath.tickIndexToSqrtPriceX64(positionData.tickUpperIndex),
+    false, // round down
   );
 
   const price = PriceMath.sqrtPriceX64ToPrice(whirlpool.sqrtPrice, mintA.decimals, mintB.decimals);
-  const lowerPrice = PriceMath.tickIndexToPrice(position.tickLowerIndex, mintA.decimals, mintB.decimals);
-  const upperPrice = PriceMath.tickIndexToPrice(position.tickUpperIndex, mintA.decimals, mintB.decimals);
+  const lowerPrice = PriceMath.tickIndexToPrice(positionData.tickLowerIndex, mintA.decimals, mintB.decimals);
+  const upperPrice = PriceMath.tickIndexToPrice(positionData.tickUpperIndex, mintA.decimals, mintB.decimals);
 
   return {
     address: positionAddress,
     baseTokenAddress: whirlpool.tokenMintA.toString(),
     quoteTokenAddress: whirlpool.tokenMintB.toString(),
-    poolAddress: position.whirlpool.toString(),
+    poolAddress: positionData.whirlpool.toString(),
     baseFeeAmount: Number(feesQuote.feeOwedA.toString()) / Math.pow(10, mintA.decimals),
     quoteFeeAmount: Number(feesQuote.feeOwedB.toString()) / Math.pow(10, mintB.decimals),
     lowerPrice: lowerPrice.toNumber(),
     upperPrice: upperPrice.toNumber(),
-    lowerBinId: position.tickLowerIndex,
-    upperBinId: position.tickUpperIndex,
+    lowerBinId: positionData.tickLowerIndex,
+    upperBinId: positionData.tickUpperIndex,
     baseTokenAmount: Number(tokenAmounts.tokenA.toString()) / Math.pow(10, mintA.decimals),
     quoteTokenAmount: Number(tokenAmounts.tokenB.toString()) / Math.pow(10, mintB.decimals),
     price: price.toNumber(),
@@ -179,95 +181,6 @@ function getCurrentTransferFee(
     feeBps: transferFee.transferFeeBasisPoints,
     maxFee: transferFee.maximumFee,
   };
-}
-
-/**
- * Calculate token A amount from liquidity
- * @internal
- */
-function getTokenAFromLiquidity(
-  liquidityDelta: bigint,
-  sqrtPriceLower: bigint,
-  sqrtPriceUpper: bigint,
-  roundUp: boolean,
-): bigint {
-  const sqrtPriceDiff = sqrtPriceUpper - sqrtPriceLower;
-  const numerator = (liquidityDelta * sqrtPriceDiff) << 64n;
-  const denominator = sqrtPriceUpper * sqrtPriceLower;
-  const quotient = numerator / denominator;
-  const remainder = numerator % denominator;
-
-  if (roundUp && remainder !== 0n) {
-    return quotient + 1n;
-  }
-  return quotient;
-}
-
-/**
- * Calculate token B amount from liquidity
- * @internal
- */
-function getTokenBFromLiquidity(
-  liquidityDelta: bigint,
-  sqrtPriceLower: bigint,
-  sqrtPriceUpper: bigint,
-  roundUp: boolean,
-): bigint {
-  const sqrtPriceDiff = sqrtPriceUpper - sqrtPriceLower;
-  const mul = liquidityDelta * sqrtPriceDiff;
-  const result = mul >> 64n;
-
-  if (roundUp && (mul & ((1n << 64n) - 1n)) > 0n) {
-    return result + 1n;
-  }
-  return result;
-}
-
-/**
- * Calculate the estimated token amounts for a given liquidity delta and price range.
- * This is a TypeScript implementation of the Rust function `try_get_token_estimates_from_liquidity`.
- *
- * @param liquidityDelta - The amount of liquidity to get token estimates for
- * @param currentSqrtPrice - The current sqrt price of the pool
- * @param tickLowerIndex - The lower tick index of the range
- * @param tickUpperIndex - The upper tick index of the range
- * @param roundUp - Whether to round the token amounts up
- * @returns A tuple containing the estimated amounts of token A and token B
- */
-export function getTokenEstimatesFromLiquidity(
-  liquidityDelta: bigint,
-  currentSqrtPrice: bigint,
-  tickLowerIndex: number,
-  tickUpperIndex: number,
-  roundUp: boolean,
-): [bigint, bigint] {
-  if (liquidityDelta === 0n) {
-    return [0n, 0n];
-  }
-
-  const sqrtPriceLower = tickIndexToSqrtPrice(tickLowerIndex);
-  const sqrtPriceUpper = tickIndexToSqrtPrice(tickUpperIndex);
-
-  const status = positionStatus(currentSqrtPrice, tickLowerIndex, tickUpperIndex);
-
-  // PositionStatus enum values: Invalid = 0, PriceBelowRange = 1, PriceInRange = 2, PriceAboveRange = 3
-  if (status === 'priceBelowRange') {
-    // PriceBelowRange
-    const tokenA = getTokenAFromLiquidity(liquidityDelta, sqrtPriceLower, sqrtPriceUpper, roundUp);
-    return [tokenA, 0n];
-  } else if (status === 'priceInRange') {
-    // PriceInRange
-    const tokenA = getTokenAFromLiquidity(liquidityDelta, currentSqrtPrice, sqrtPriceUpper, roundUp);
-    const tokenB = getTokenBFromLiquidity(liquidityDelta, sqrtPriceLower, currentSqrtPrice, roundUp);
-    return [tokenA, tokenB];
-  } else if (status === 'priceAboveRange') {
-    // PriceAboveRange
-    const tokenB = getTokenBFromLiquidity(liquidityDelta, sqrtPriceLower, sqrtPriceUpper, roundUp);
-    return [0n, tokenB];
-  }
-
-  // Invalid
-  return [0n, 0n];
 }
 
 /**
@@ -515,7 +428,7 @@ export async function quotePosition(
  * For unwrapping WSOL: Closes WSOL ATA and returns all SOL to wallet.
  *
  * @param {TransactionBuilder} builder - The transaction builder to add instructions to
- * @param {WhirlpoolContext} ctx - The whirlpool context containing connection and wallet
+ * @param {WhirlpoolClient} client - The whirlpool client
  * @param {PublicKey} tokenMint - The token mint address to check
  * @param {PublicKey} tokenOwnerAccount - The ATA address for the token
  * @param {PublicKey} tokenProgram - The token program ID
@@ -525,7 +438,7 @@ export async function quotePosition(
  */
 export async function handleWsolAta(
   builder: TransactionBuilder,
-  ctx: WhirlpoolContext,
+  client: WhirlpoolClient,
   tokenMint: PublicKey,
   tokenOwnerAccount: PublicKey,
   tokenProgram: PublicKey,
@@ -534,7 +447,7 @@ export async function handleWsolAta(
   solana?: Solana,
 ): Promise<void> {
   const isWsol = tokenMint.equals(NATIVE_MINT);
-  const ataInfo = await ctx.connection.getAccountInfo(tokenOwnerAccount);
+  const ataInfo = await client.getContext().connection.getAccountInfo(tokenOwnerAccount);
 
   if (mode === 'unwrap') {
     // For unwrapping WSOL: close WSOL ATA and return all SOL to wallet
@@ -548,7 +461,7 @@ export async function handleWsolAta(
     }
 
     logger.info('Unwrapping WSOL: closing WSOL ATA to return SOL to wallet');
-    const unwrapInstruction = solana.unwrapSOL(ctx.wallet.publicKey, tokenProgram);
+    const unwrapInstruction = solana.unwrapSOL(client.getContext().wallet.publicKey, tokenProgram);
     builder.addInstruction({
       instructions: [unwrapInstruction],
       cleanupInstructions: [],
@@ -561,9 +474,9 @@ export async function handleWsolAta(
       builder.addInstruction({
         instructions: [
           createAssociatedTokenAccountIdempotentInstruction(
-            ctx.wallet.publicKey,
+            client.getContext().wallet.publicKey,
             tokenOwnerAccount,
-            ctx.wallet.publicKey,
+            client.getContext().wallet.publicKey,
             tokenMint,
             tokenProgram,
           ),
@@ -582,7 +495,7 @@ export async function handleWsolAta(
 
       let existingBalance = new BN(0);
       if (ataInfo) {
-        const tokenAccountInfo = await ctx.fetcher.getTokenInfo(tokenOwnerAccount);
+        const tokenAccountInfo = await client.getFetcher().getTokenInfo(tokenOwnerAccount);
         if (tokenAccountInfo) {
           existingBalance = new BN(tokenAccountInfo.amount.toString());
         }
@@ -596,14 +509,14 @@ export async function handleWsolAta(
         builder.addInstruction({
           instructions: [
             createAssociatedTokenAccountIdempotentInstruction(
-              ctx.wallet.publicKey,
+              client.getContext().wallet.publicKey,
               tokenOwnerAccount,
-              ctx.wallet.publicKey,
+              client.getContext().wallet.publicKey,
               NATIVE_MINT,
               tokenProgram,
             ),
             SystemProgram.transfer({
-              fromPubkey: ctx.wallet.publicKey,
+              fromPubkey: client.getContext().wallet.publicKey,
               toPubkey: tokenOwnerAccount,
               lamports: amountNeeded.toNumber(),
             }),
@@ -621,9 +534,9 @@ export async function handleWsolAta(
         builder.addInstruction({
           instructions: [
             createAssociatedTokenAccountIdempotentInstruction(
-              ctx.wallet.publicKey,
+              client.getContext().wallet.publicKey,
               tokenOwnerAccount,
-              ctx.wallet.publicKey,
+              client.getContext().wallet.publicKey,
               tokenMint,
               tokenProgram,
             ),
@@ -642,7 +555,7 @@ export async function handleWsolAta(
  */
 export function getTickArrayPubkeys(
   position: { tickLowerIndex: number; tickUpperIndex: number },
-  whirlpool: { tickSpacing: number },
+  whirlpool: WhirlpoolData,
   whirlpoolPubkey: PublicKey,
 ): { lower: PublicKey; upper: PublicKey } {
   return {

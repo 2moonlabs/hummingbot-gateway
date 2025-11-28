@@ -4,6 +4,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { collectFees as meteoraCollectFees } from '../../connectors/meteora/clmm-routes/collectFees';
+import { collectFees as orcaCollectFees } from '../../connectors/orca/clmm-routes/collectFees';
 import { collectFees as pancakeswapCollectFees } from '../../connectors/pancakeswap/clmm-routes/collectFees';
 import { collectFees as pancakeswapSolCollectFees } from '../../connectors/pancakeswap-sol/clmm-routes/collectFees';
 import { collectFees as raydiumCollectFees } from '../../connectors/raydium/clmm-routes/collectFees';
@@ -42,7 +43,7 @@ function parseChainNetwork(chainNetwork: string): { chain: string; network: stri
 // Unified schema with connector field
 const UnifiedCollectFeesRequest = Type.Object({
   connector: Type.String({
-    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)',
+    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)',
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -102,6 +103,9 @@ export const collectFeesRoute: FastifyPluginAsync = async (fastify) => {
 
           case 'pancakeswap-sol':
             return await pancakeswapSolCollectFees(fastify, network, walletAddress, positionAddress);
+
+          case 'orca':
+            return await orcaCollectFees(fastify, network, walletAddress, positionAddress);
 
           default:
             throw fastify.httpErrors.badRequest(`Unsupported connector: ${connector}`);

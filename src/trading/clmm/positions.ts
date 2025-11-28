@@ -2,6 +2,7 @@ import { Type, Static } from '@sinclair/typebox';
 import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 
 import { getPositionInfo as meteoraGetPositionInfo } from '../../connectors/meteora/clmm-routes/positionInfo';
+import { getPositionInfo as orcaGetPositionInfo } from '../../connectors/orca/clmm-routes/positionInfo';
 import { getPositionInfo as pancakeswapGetPositionInfo } from '../../connectors/pancakeswap/clmm-routes/positionInfo';
 import { getPositionInfo as pancakeswapSolGetPositionInfo } from '../../connectors/pancakeswap-sol/clmm-routes/positionInfo';
 import { getPositionInfo as raydiumGetPositionInfo } from '../../connectors/raydium/clmm-routes/positionInfo';
@@ -14,8 +15,8 @@ import { logger } from '../../services/logger';
  */
 const UnifiedPositionInfoRequestSchema = Type.Object({
   connector: Type.String({
-    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)',
-    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap'],
+    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)',
+    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap', 'orca'],
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -68,6 +69,8 @@ async function getSolanaPositionInfo(
       return await meteoraGetPositionInfo(fastify, network, positionAddress);
     case 'pancakeswap-sol':
       return await pancakeswapSolGetPositionInfo(fastify, network, positionAddress);
+    case 'orca':
+      return await orcaGetPositionInfo(fastify, network, positionAddress);
     default:
       throw fastify.httpErrors.badRequest(`Unsupported Solana CLMM connector: ${connector}`);
   }

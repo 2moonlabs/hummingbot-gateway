@@ -37,7 +37,7 @@
     "prepare": "pnpm husky"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "~0.29.0",
+    "@coral-xyz/anchor": "^0.30.1",
     "@ethersproject/abstract-provider": "5.7.0",
     "@ethersproject/address": "5.7.0",
     "@ethersproject/contracts": "5.7.0",
@@ -58,7 +58,7 @@
     "@orca-so/whirlpools": "^4.0.0",
     "@orca-so/whirlpools-client": "^4.0.1",
     "@orca-so/whirlpools-core": "^2.0.0",
-    "@orca-so/whirlpools-sdk": "^0.16.0",
+    "@orca-so/whirlpools-sdk": "^0.17.0",
     "@pancakeswap/permit2-sdk": "^1.1.5",
     "@pancakeswap/sdk": "^5.8.16",
     "@pancakeswap/smart-router": "^7.5.2",

@@ -115,10 +115,8 @@ describe('GET /pool-info', () => {
       },
     });
 
-    // Null result is returned as empty object by Fastify
-    expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
-    expect(body).toEqual({});
+    // Route now throws 404 when pool not found
+    expect(response.statusCode).toBe(404);
   });
 
   it('should handle errors from Orca connector', async () => {

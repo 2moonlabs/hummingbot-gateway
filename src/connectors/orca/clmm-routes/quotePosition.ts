@@ -33,11 +33,6 @@ export async function quotePosition(
     throw fastify.httpErrors.badRequest('At least one of baseTokenAmount or quoteTokenAmount must be specified');
   }
 
-  // // We need to fetch the pool to get token decimals for proper conversion
-  // const { fetchWhirlpool } = await import('@orca-so/whirlpools-client');
-  // const { address } = await import('@solana/kit');
-  // const { fetchAllMint } = await import('@solana-program/token-2022');
-
   // Get quote from utility method
   const quote = await getQuotePosition(
     orca.solanaKitRpc,

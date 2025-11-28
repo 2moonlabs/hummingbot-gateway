@@ -118,9 +118,8 @@ describe('GET /position-info', () => {
         },
       });
 
-      expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body).toEqual({});
+      // Route now throws 404 when position not found
+      expect(response.statusCode).toBe(404);
     });
   });
 
@@ -152,7 +151,8 @@ describe('GET /position-info', () => {
         },
       });
 
-      expect([200, 400, 500]).toContain(response.statusCode);
+      // Route now throws 404 when position not found
+      expect([404, 400, 500]).toContain(response.statusCode);
     });
   });
 

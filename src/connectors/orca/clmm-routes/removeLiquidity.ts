@@ -1,5 +1,10 @@
 import { Percentage, TransactionBuilder } from '@orca-so/common-sdk';
-import { WhirlpoolIx, decreaseLiquidityQuoteByLiquidityWithParams, TokenExtensionUtil } from '@orca-so/whirlpools-sdk';
+import {
+  WhirlpoolIx,
+  decreaseLiquidityQuoteByLiquidityWithParams,
+  TokenExtensionUtil,
+  IGNORE_CACHE,
+} from '@orca-so/whirlpools-sdk';
 import { Static } from '@sinclair/typebox';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
@@ -14,7 +19,7 @@ import { Orca } from '../orca';
 import { getTickArrayPubkeys, handleWsolAta } from '../orca.utils';
 import { OrcaClmmRemoveLiquidityRequest } from '../schemas';
 
-async function removeLiquidity(
+export async function removeLiquidity(
   fastify: FastifyInstance,
   network: string,
   address: string,
@@ -29,52 +34,56 @@ async function removeLiquidity(
   const solana = await Solana.getInstance(network);
   const orca = await Orca.getInstance(network);
   const wallet = await solana.getWallet(address);
-  const ctx = await orca.getWhirlpoolContextForWallet(address);
+  const client = await orca.getWhirlpoolClientForWallet(address);
   const positionPubkey = new PublicKey(positionAddress);
 
   // Fetch position data
-  const position = await ctx.fetcher.getPosition(positionPubkey);
+  const position = await client.getPosition(positionPubkey);
   if (!position) {
     throw fastify.httpErrors.notFound(`Position not found: ${positionAddress}`);
   }
 
-  const positionMint = await ctx.fetcher.getMintInfo(position.positionMint);
+  await position.refreshData();
+
+  const positionMint = await client.getFetcher().getMintInfo(position.getData().positionMint);
   if (!positionMint) {
-    throw fastify.httpErrors.notFound(`Position mint not found: ${position.positionMint.toString()}`);
+    throw fastify.httpErrors.notFound(`Position mint not found: ${position.getData().positionMint.toString()}`);
   }
 
   // Fetch whirlpool data
-  const whirlpoolPubkey = position.whirlpool;
-  const whirlpool = await ctx.fetcher.getPool(whirlpoolPubkey);
+  const whirlpoolPubkey = position.getData().whirlpool;
+  const whirlpool = await client.getPool(whirlpoolPubkey, IGNORE_CACHE);
   if (!whirlpool) {
     throw fastify.httpErrors.notFound(`Whirlpool not found: ${whirlpoolPubkey.toString()}`);
   }
 
+  await whirlpool.refreshData();
+
   // Fetch token mint info
-  const mintA = await ctx.fetcher.getMintInfo(whirlpool.tokenMintA);
-  const mintB = await ctx.fetcher.getMintInfo(whirlpool.tokenMintB);
+  const mintA = await client.getFetcher().getMintInfo(whirlpool.getTokenAInfo().address);
+  const mintB = await client.getFetcher().getMintInfo(whirlpool.getTokenBInfo().address);
   if (!mintA || !mintB) {
     throw fastify.httpErrors.notFound('Token mint not found');
   }
 
   // Calculate liquidity amount to remove
   const liquidityAmount = new BN(
-    new Decimal(position.liquidity.toString()).mul(liquidityPct).div(100).floor().toString(),
+    new Decimal(position.getData().liquidity.toString()).mul(liquidityPct).div(100).floor().toString(),
   );
 
-  if (liquidityAmount.isZero() || liquidityAmount.gt(position.liquidity)) {
+  if (liquidityAmount.isZero() || liquidityAmount.gt(position.getData().liquidity)) {
     throw fastify.httpErrors.badRequest('Invalid liquidity amount calculated');
   }
 
   // Get decrease liquidity quote
   const quote = decreaseLiquidityQuoteByLiquidityWithParams({
     liquidity: liquidityAmount,
-    sqrtPrice: whirlpool.sqrtPrice,
-    tickCurrentIndex: whirlpool.tickCurrentIndex,
-    tickLowerIndex: position.tickLowerIndex,
-    tickUpperIndex: position.tickUpperIndex,
-    tokenExtensionCtx: await TokenExtensionUtil.buildTokenExtensionContext(ctx.fetcher, whirlpool),
-    slippageTolerance: Percentage.fromDecimal(new Decimal(slippagePct).div(100)),
+    sqrtPrice: whirlpool.getData().sqrtPrice,
+    tickCurrentIndex: whirlpool.getData().tickCurrentIndex,
+    tickLowerIndex: position.getData().tickLowerIndex,
+    tickUpperIndex: position.getData().tickUpperIndex,
+    tokenExtensionCtx: await TokenExtensionUtil.buildTokenExtensionContext(client.getFetcher(), whirlpool.getData()),
+    slippageTolerance: Percentage.fromDecimal(new Decimal(slippagePct)),
   });
 
   logger.info(
@@ -82,38 +91,52 @@ async function removeLiquidity(
   );
 
   // Build transaction
-  const builder = new TransactionBuilder(ctx.connection, ctx.wallet);
+  const builder = new TransactionBuilder(client.getContext().connection, client.getContext().wallet);
 
   const tokenOwnerAccountA = getAssociatedTokenAddressSync(
-    whirlpool.tokenMintA,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenAInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintA.tokenProgram,
   );
   const tokenOwnerAccountB = getAssociatedTokenAddressSync(
-    whirlpool.tokenMintB,
-    ctx.wallet.publicKey,
+    whirlpool.getTokenBInfo().address,
+    client.getContext().wallet.publicKey,
     undefined,
     mintB.tokenProgram,
   );
 
   // Handle WSOL ATAs for receiving withdrawn liquidity
-  await handleWsolAta(builder, ctx, whirlpool.tokenMintA, tokenOwnerAccountA, mintA.tokenProgram, 'receive');
-  await handleWsolAta(builder, ctx, whirlpool.tokenMintB, tokenOwnerAccountB, mintB.tokenProgram, 'receive');
+  await handleWsolAta(
+    builder,
+    client,
+    whirlpool.getTokenAInfo().address,
+    tokenOwnerAccountA,
+    mintA.tokenProgram,
+    'receive',
+  );
+  await handleWsolAta(
+    builder,
+    client,
+    whirlpool.getTokenBInfo().address,
+    tokenOwnerAccountB,
+    mintB.tokenProgram,
+    'receive',
+  );
 
-  const { lower, upper } = getTickArrayPubkeys(position, whirlpool, whirlpoolPubkey);
+  const { lower, upper } = getTickArrayPubkeys(position.getData(), whirlpool.getData(), whirlpoolPubkey);
   builder.addInstruction(
-    WhirlpoolIx.decreaseLiquidityV2Ix(ctx.program, {
+    WhirlpoolIx.decreaseLiquidityV2Ix(client.getContext().program, {
       liquidityAmount: quote.liquidityAmount,
       tokenMinA: quote.tokenMinA,
       tokenMinB: quote.tokenMinB,
       position: positionPubkey,
-      positionAuthority: ctx.wallet.publicKey,
-      tokenMintA: whirlpool.tokenMintA,
-      tokenMintB: whirlpool.tokenMintB,
+      positionAuthority: client.getContext().wallet.publicKey,
+      tokenMintA: whirlpool.getTokenAInfo().address,
+      tokenMintB: whirlpool.getTokenBInfo().address,
       positionTokenAccount: getAssociatedTokenAddressSync(
-        position.positionMint,
-        ctx.wallet.publicKey,
+        position.getData().positionMint,
+        client.getContext().wallet.publicKey,
         undefined,
         positionMint.tokenProgram,
       ),
@@ -123,22 +146,22 @@ async function removeLiquidity(
       tokenOwnerAccountB,
       tokenProgramA: mintA.tokenProgram,
       tokenProgramB: mintB.tokenProgram,
-      tokenVaultA: whirlpool.tokenVaultA,
-      tokenVaultB: whirlpool.tokenVaultB,
+      tokenVaultA: whirlpool.getTokenVaultAInfo().address,
+      tokenVaultB: whirlpool.getTokenVaultBInfo().address,
       whirlpool: whirlpoolPubkey,
       tokenTransferHookAccountsA: await TokenExtensionUtil.getExtraAccountMetasForTransferHook(
-        ctx.provider.connection,
+        client.getContext().provider.connection,
         mintA,
         tokenOwnerAccountA,
-        whirlpool.tokenVaultA,
-        ctx.wallet.publicKey,
+        whirlpool.getTokenVaultAInfo().address,
+        client.getContext().wallet.publicKey,
       ),
       tokenTransferHookAccountsB: await TokenExtensionUtil.getExtraAccountMetasForTransferHook(
-        ctx.provider.connection,
+        client.getContext().provider.connection,
         mintB,
         tokenOwnerAccountB,
-        whirlpool.tokenVaultB,
-        ctx.wallet.publicKey,
+        whirlpool.getTokenVaultBInfo().address,
+        client.getContext().wallet.publicKey,
       ),
     }),
   );
@@ -147,8 +170,8 @@ async function removeLiquidity(
   logger.info('Auto-unwrapping WSOL liquidity (if any) back to native SOL');
   await handleWsolAta(
     builder,
-    ctx,
-    whirlpool.tokenMintA,
+    client,
+    whirlpool.getTokenAInfo().address,
     tokenOwnerAccountA,
     mintA.tokenProgram,
     'unwrap',
@@ -157,8 +180,8 @@ async function removeLiquidity(
   );
   await handleWsolAta(
     builder,
-    ctx,
-    whirlpool.tokenMintB,
+    client,
+    whirlpool.getTokenBInfo().address,
     tokenOwnerAccountB,
     mintB.tokenProgram,
     'unwrap',
@@ -172,16 +195,17 @@ async function removeLiquidity(
   const { signature, fee } = await solana.sendAndConfirmTransaction(txPayload.transaction, [wallet]);
 
   // Extract removed amounts from balance changes
-  const tokenA = await solana.getToken(whirlpool.tokenMintA.toString());
-  const tokenB = await solana.getToken(whirlpool.tokenMintB.toString());
+  const tokenA = await solana.getToken(whirlpool.getTokenAInfo().address.toString());
+  const tokenB = await solana.getToken(whirlpool.getTokenBInfo().address.toString());
   if (!tokenA || !tokenB) {
     throw fastify.httpErrors.notFound('Tokens not found for balance extraction');
   }
 
-  const { balanceChanges } = await solana.extractBalanceChangesAndFee(signature, ctx.wallet.publicKey.toString(), [
-    tokenA.address,
-    tokenB.address,
-  ]);
+  const { balanceChanges } = await solana.extractBalanceChangesAndFee(
+    signature,
+    client.getContext().wallet.publicKey.toString(),
+    [tokenA.address, tokenB.address],
+  );
 
   logger.info(
     `Liquidity removed: ${Math.abs(balanceChanges[0]).toFixed(6)} ${tokenA.symbol}, ${Math.abs(balanceChanges[1]).toFixed(6)} ${tokenB.symbol}`,

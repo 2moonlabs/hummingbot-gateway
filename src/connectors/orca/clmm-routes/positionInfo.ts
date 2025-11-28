@@ -1,10 +1,46 @@
 import { PublicKey } from '@solana/web3.js';
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 
+import { Solana } from '../../../chains/solana/solana';
 import { PositionInfo, PositionInfoSchema, GetPositionInfoRequestType } from '../../../schemas/clmm-schema';
 import { logger } from '../../../services/logger';
 import { Orca } from '../orca';
 import { OrcaClmmGetPositionInfoRequest } from '../schemas';
+
+export async function getPositionInfo(
+  fastify: FastifyInstance,
+  network: string,
+  positionAddress: string,
+  walletAddress?: string,
+): Promise<PositionInfo> {
+  const orca = await Orca.getInstance(network);
+
+  if (!positionAddress) {
+    throw fastify.httpErrors.badRequest('Position address is required');
+  }
+
+  // Get wallet address from Solana class if not provided
+  let resolvedWalletAddress = walletAddress;
+  if (!resolvedWalletAddress) {
+    resolvedWalletAddress = await Solana.getWalletAddressExample();
+  }
+
+  // Validate wallet address
+  if (resolvedWalletAddress) {
+    try {
+      new PublicKey(resolvedWalletAddress);
+    } catch (error) {
+      throw fastify.httpErrors.badRequest(`Invalid wallet address: ${resolvedWalletAddress}`);
+    }
+  }
+
+  const positionInfo = await orca.getPositionInfo(positionAddress, resolvedWalletAddress);
+  if (!positionInfo) {
+    throw fastify.httpErrors.notFound(`Position not found: ${positionAddress}`);
+  }
+
+  return positionInfo;
+}
 
 export const positionInfoRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
@@ -26,17 +62,7 @@ export const positionInfoRoute: FastifyPluginAsync = async (fastify) => {
       try {
         const { positionAddress, walletAddress } = request.query;
         const network = request.query.network;
-        const orca = await Orca.getInstance(network);
-
-        try {
-          new PublicKey(walletAddress);
-        } catch (error) {
-          throw fastify.httpErrors.badRequest(`Invalid wallet address: ${walletAddress}`);
-        }
-
-        const position = await orca.getPositionInfo(positionAddress, walletAddress);
-
-        return position;
+        return await getPositionInfo(fastify, network, positionAddress, walletAddress);
       } catch (e) {
         logger.error(e);
         if (e.statusCode) {

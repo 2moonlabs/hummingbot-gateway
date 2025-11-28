@@ -97,8 +97,8 @@ export const PoolAddRequestSchema = Type.Object({
 // Get pool request
 export const GetPoolRequestSchema = Type.Object({
   connector: Type.String({
-    description: 'Connector (raydium, meteora, uniswap)',
-    examples: ['raydium', 'meteora', 'uniswap'],
+    description: 'Connector (raydium, meteora, uniswap, orca)',
+    examples: ['raydium', 'meteora', 'uniswap', 'orca'],
   }),
   network: Type.String({
     description: 'Network name (mainnet, mainnet-beta, etc)',
