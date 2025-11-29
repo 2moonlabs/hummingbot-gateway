@@ -168,7 +168,7 @@ export const FindPoolsQuerySchema = Type.Object({
   connector: Type.Optional(
     Type.String({
       description: 'Filter by connector name (e.g., raydium, meteora, uniswap, pancakeswap, pancakeswap-sol)',
-      examples: ['raydium', 'meteora', 'uniswap', 'pancakeswap', 'pancakeswap-sol'],
+      examples: ['raydium', 'meteora', 'uniswap', 'pancakeswap', 'pancakeswap-sol', 'orca'],
     }),
   ),
   type: Type.Optional(
