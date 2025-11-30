@@ -3,7 +3,7 @@
   "info": {
     "title": "Hummingbot Gateway",
     "description": "API endpoints for interacting with DEXs and blockchains",
-    "version": "dev-2.10.0"
+    "version": "dev-2.11.0"
   },
   "components": {
     "parameters": {
@@ -358,7 +358,7 @@
                   "privateKey": {
                     "description": "Private key for the wallet",
                     "type": "string",
-                    "example": "<your-private-key>"
+                    "example": "\u003Cyour-private-key\u003E"
                   },
                   "setDefault": {
                     "description": "Set this wallet as the default for the chain",
@@ -370,7 +370,7 @@
               },
               "example": {
                 "chain": "solana",
-                "privateKey": "<your-private-key>",
+                "privateKey": "\u003Cyour-private-key\u003E",
                 "setDefault": true
               }
             }
@@ -582,6 +582,395 @@
         }
       }
     },
+    "/tokens/{symbolOrAddress}": {
+      "get": {
+        "tags": ["/tokens"],
+        "description": "Get a specific token by symbol or address",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "ethereum": {
+                "value": "ethereum"
+              },
+              "solana": {
+                "value": "solana"
+              }
+            },
+            "in": "query",
+            "name": "chain",
+            "required": true,
+            "description": "Blockchain network (e.g., ethereum, solana)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "mainnet": {
+                "value": "mainnet"
+              },
+              "mainnet-beta": {
+                "value": "mainnet-beta"
+              },
+              "devnet": {
+                "value": "devnet"
+              }
+            },
+            "in": "query",
+            "name": "network",
+            "required": true,
+            "description": "Network name (e.g., mainnet, mainnet-beta)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "symbolOrAddress",
+            "required": true,
+            "description": "Token symbol or address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "object",
+                      "properties": {
+                        "chainId": {
+                          "description": "The chain ID",
+                          "type": "number",
+                          "example": 1
+                        },
+                        "name": {
+                          "description": "The full name of the token",
+                          "type": "string",
+                          "example": "USD Coin"
+                        },
+                        "symbol": {
+                          "description": "The token symbol",
+                          "type": "string",
+                          "example": "USDC"
+                        },
+                        "address": {
+                          "description": "The token contract address",
+                          "type": "string",
+                          "example": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                        },
+                        "decimals": {
+                          "description": "The number of decimals the token uses",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "type": "number",
+                          "example": 6
+                        },
+                        "geckoData": {
+                          "type": "object",
+                          "properties": {
+                            "coingeckoCoinId": {
+                              "description": "CoinGecko coin ID if available",
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "imageUrl": {
+                              "description": "Token image URL",
+                              "type": "string"
+                            },
+                            "priceUsd": {
+                              "description": "Current price in USD",
+                              "type": "string"
+                            },
+                            "volumeUsd24h": {
+                              "description": "24h trading volume in USD",
+                              "type": "string"
+                            },
+                            "marketCapUsd": {
+                              "description": "Market capitalization in USD",
+                              "type": "string"
+                            },
+                            "fdvUsd": {
+                              "description": "Fully diluted valuation in USD",
+                              "type": "string"
+                            },
+                            "totalSupply": {
+                              "description": "Normalized total supply (human-readable)",
+                              "type": "string"
+                            },
+                            "topPools": {
+                              "description": "Array of top pool addresses",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "timestamp": {
+                              "description": "Unix timestamp (ms) when data was fetched",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "coingeckoCoinId",
+                            "imageUrl",
+                            "priceUsd",
+                            "volumeUsd24h",
+                            "marketCapUsd",
+                            "fdvUsd",
+                            "totalSupply",
+                            "topPools",
+                            "timestamp"
+                          ]
+                        }
+                      },
+                      "required": ["name", "symbol", "address", "decimals"]
+                    },
+                    "chain": {
+                      "type": "string"
+                    },
+                    "network": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["token", "chain", "network"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tokens/find/{address}": {
+      "get": {
+        "tags": ["/tokens"],
+        "description": "Get token information with market data from GeckoTerminal by address",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "solana-mainnet-beta": {
+                "value": "solana-mainnet-beta"
+              },
+              "ethereum-mainnet": {
+                "value": "ethereum-mainnet"
+              },
+              "ethereum-base": {
+                "value": "ethereum-base"
+              },
+              "ethereum-polygon": {
+                "value": "ethereum-polygon"
+              }
+            },
+            "in": "query",
+            "name": "chainNetwork",
+            "required": true,
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "So11111111111111111111111111111111111111112": {
+                "value": "So11111111111111111111111111111111111111112"
+              },
+              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": {
+                "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+              }
+            },
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "description": "Token contract address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chainId": {
+                      "description": "The chain ID",
+                      "type": "number",
+                      "example": 1
+                    },
+                    "name": {
+                      "description": "The full name of the token",
+                      "type": "string",
+                      "example": "USD Coin"
+                    },
+                    "symbol": {
+                      "description": "The token symbol",
+                      "type": "string",
+                      "example": "USDC"
+                    },
+                    "address": {
+                      "description": "The token contract address",
+                      "type": "string",
+                      "example": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    },
+                    "decimals": {
+                      "description": "The number of decimals the token uses",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "type": "number",
+                      "example": 6
+                    },
+                    "geckoData": {
+                      "type": "object",
+                      "allOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "coingeckoCoinId": {
+                              "description": "CoinGecko coin ID if available",
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "imageUrl": {
+                              "description": "Token image URL",
+                              "type": "string"
+                            },
+                            "priceUsd": {
+                              "description": "Current price in USD",
+                              "type": "string"
+                            },
+                            "volumeUsd24h": {
+                              "description": "24h trading volume in USD",
+                              "type": "string"
+                            },
+                            "marketCapUsd": {
+                              "description": "Market capitalization in USD",
+                              "type": "string"
+                            },
+                            "fdvUsd": {
+                              "description": "Fully diluted valuation in USD",
+                              "type": "string"
+                            },
+                            "totalSupply": {
+                              "description": "Normalized total supply (human-readable)",
+                              "type": "string"
+                            },
+                            "topPools": {
+                              "description": "Array of top pool addresses",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "timestamp": {
+                              "description": "Unix timestamp (ms) when data was fetched",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "coingeckoCoinId",
+                            "imageUrl",
+                            "priceUsd",
+                            "volumeUsd24h",
+                            "marketCapUsd",
+                            "fdvUsd",
+                            "totalSupply",
+                            "topPools",
+                            "timestamp"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "coingeckoCoinId": {
+                              "description": "CoinGecko coin ID if available",
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "imageUrl": {
+                              "description": "Token image URL",
+                              "type": "string"
+                            },
+                            "priceUsd": {
+                              "description": "Current price in USD",
+                              "type": "string"
+                            },
+                            "volumeUsd24h": {
+                              "description": "24h trading volume in USD",
+                              "type": "string"
+                            },
+                            "marketCapUsd": {
+                              "description": "Market capitalization in USD",
+                              "type": "string"
+                            },
+                            "fdvUsd": {
+                              "description": "Fully diluted valuation in USD",
+                              "type": "string"
+                            },
+                            "totalSupply": {
+                              "description": "Normalized total supply (human-readable)",
+                              "type": "string"
+                            },
+                            "topPools": {
+                              "description": "Array of top pool addresses",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "timestamp": {
+                              "description": "Unix timestamp (ms) when data was fetched",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "coingeckoCoinId",
+                            "imageUrl",
+                            "priceUsd",
+                            "volumeUsd24h",
+                            "marketCapUsd",
+                            "fdvUsd",
+                            "totalSupply",
+                            "topPools",
+                            "timestamp"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["name", "symbol", "address", "decimals"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tokens/": {
       "get": {
         "tags": ["/tokens"],
@@ -655,6 +1044,11 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "chainId": {
+                            "description": "The chain ID",
+                            "type": "number",
+                            "example": 1
+                          },
                           "name": {
                             "description": "The full name of the token",
                             "type": "string",
@@ -676,6 +1070,68 @@
                             "maximum": 255,
                             "type": "number",
                             "example": 6
+                          },
+                          "geckoData": {
+                            "type": "object",
+                            "properties": {
+                              "coingeckoCoinId": {
+                                "description": "CoinGecko coin ID if available",
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "imageUrl": {
+                                "description": "Token image URL",
+                                "type": "string"
+                              },
+                              "priceUsd": {
+                                "description": "Current price in USD",
+                                "type": "string"
+                              },
+                              "volumeUsd24h": {
+                                "description": "24h trading volume in USD",
+                                "type": "string"
+                              },
+                              "marketCapUsd": {
+                                "description": "Market capitalization in USD",
+                                "type": "string"
+                              },
+                              "fdvUsd": {
+                                "description": "Fully diluted valuation in USD",
+                                "type": "string"
+                              },
+                              "totalSupply": {
+                                "description": "Normalized total supply (human-readable)",
+                                "type": "string"
+                              },
+                              "topPools": {
+                                "description": "Array of top pool addresses",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "timestamp": {
+                                "description": "Unix timestamp (ms) when data was fetched",
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "coingeckoCoinId",
+                              "imageUrl",
+                              "priceUsd",
+                              "volumeUsd24h",
+                              "marketCapUsd",
+                              "fdvUsd",
+                              "totalSupply",
+                              "topPools",
+                              "timestamp"
+                            ]
                           }
                         },
                         "required": ["name", "symbol", "address", "decimals"]
@@ -711,6 +1167,11 @@
                   "token": {
                     "type": "object",
                     "properties": {
+                      "chainId": {
+                        "description": "The chain ID",
+                        "type": "number",
+                        "example": 1
+                      },
                       "name": {
                         "description": "The full name of the token",
                         "type": "string",
@@ -732,6 +1193,68 @@
                         "maximum": 255,
                         "type": "number",
                         "example": 6
+                      },
+                      "geckoData": {
+                        "type": "object",
+                        "properties": {
+                          "coingeckoCoinId": {
+                            "description": "CoinGecko coin ID if available",
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "imageUrl": {
+                            "description": "Token image URL",
+                            "type": "string"
+                          },
+                          "priceUsd": {
+                            "description": "Current price in USD",
+                            "type": "string"
+                          },
+                          "volumeUsd24h": {
+                            "description": "24h trading volume in USD",
+                            "type": "string"
+                          },
+                          "marketCapUsd": {
+                            "description": "Market capitalization in USD",
+                            "type": "string"
+                          },
+                          "fdvUsd": {
+                            "description": "Fully diluted valuation in USD",
+                            "type": "string"
+                          },
+                          "totalSupply": {
+                            "description": "Normalized total supply (human-readable)",
+                            "type": "string"
+                          },
+                          "topPools": {
+                            "description": "Array of top pool addresses",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "timestamp": {
+                            "description": "Unix timestamp (ms) when data was fetched",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "coingeckoCoinId",
+                          "imageUrl",
+                          "priceUsd",
+                          "volumeUsd24h",
+                          "marketCapUsd",
+                          "fdvUsd",
+                          "totalSupply",
+                          "topPools",
+                          "timestamp"
+                        ]
                       }
                     },
                     "required": ["name", "symbol", "address", "decimals"]
@@ -769,56 +1292,50 @@
         }
       }
     },
-    "/tokens/{symbolOrAddress}": {
-      "get": {
+    "/tokens/save/{address}": {
+      "post": {
         "tags": ["/tokens"],
-        "description": "Get a specific token by symbol or address",
+        "description": "Find token from GeckoTerminal and save it to the token list",
         "parameters": [
           {
             "schema": {
               "type": "string"
             },
             "examples": {
-              "ethereum": {
-                "value": "ethereum"
+              "solana-mainnet-beta": {
+                "value": "solana-mainnet-beta"
               },
-              "solana": {
-                "value": "solana"
+              "ethereum-mainnet": {
+                "value": "ethereum-mainnet"
+              },
+              "ethereum-base": {
+                "value": "ethereum-base"
+              },
+              "ethereum-polygon": {
+                "value": "ethereum-polygon"
               }
             },
             "in": "query",
-            "name": "chain",
+            "name": "chainNetwork",
             "required": true,
-            "description": "Blockchain network (e.g., ethereum, solana)"
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
           },
           {
             "schema": {
               "type": "string"
             },
             "examples": {
-              "mainnet": {
-                "value": "mainnet"
+              "So11111111111111111111111111111111111111112": {
+                "value": "So11111111111111111111111111111111111111112"
               },
-              "mainnet-beta": {
-                "value": "mainnet-beta"
-              },
-              "devnet": {
-                "value": "devnet"
+              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": {
+                "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
               }
             },
-            "in": "query",
-            "name": "network",
-            "required": true,
-            "description": "Network name (e.g., mainnet, mainnet-beta)"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
             "in": "path",
-            "name": "symbolOrAddress",
+            "name": "address",
             "required": true,
-            "description": "Token symbol or address"
+            "description": "Token contract address"
           }
         ],
         "responses": {
@@ -829,9 +1346,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "message": {
+                      "type": "string"
+                    },
                     "token": {
                       "type": "object",
                       "properties": {
+                        "chainId": {
+                          "description": "The chain ID",
+                          "type": "number",
+                          "example": 1
+                        },
                         "name": {
                           "description": "The full name of the token",
                           "type": "string",
@@ -853,18 +1378,74 @@
                           "maximum": 255,
                           "type": "number",
                           "example": 6
+                        },
+                        "geckoData": {
+                          "type": "object",
+                          "properties": {
+                            "coingeckoCoinId": {
+                              "description": "CoinGecko coin ID if available",
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "imageUrl": {
+                              "description": "Token image URL",
+                              "type": "string"
+                            },
+                            "priceUsd": {
+                              "description": "Current price in USD",
+                              "type": "string"
+                            },
+                            "volumeUsd24h": {
+                              "description": "24h trading volume in USD",
+                              "type": "string"
+                            },
+                            "marketCapUsd": {
+                              "description": "Market capitalization in USD",
+                              "type": "string"
+                            },
+                            "fdvUsd": {
+                              "description": "Fully diluted valuation in USD",
+                              "type": "string"
+                            },
+                            "totalSupply": {
+                              "description": "Normalized total supply (human-readable)",
+                              "type": "string"
+                            },
+                            "topPools": {
+                              "description": "Array of top pool addresses",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "timestamp": {
+                              "description": "Unix timestamp (ms) when data was fetched",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "coingeckoCoinId",
+                            "imageUrl",
+                            "priceUsd",
+                            "volumeUsd24h",
+                            "marketCapUsd",
+                            "fdvUsd",
+                            "totalSupply",
+                            "topPools",
+                            "timestamp"
+                          ]
                         }
                       },
                       "required": ["name", "symbol", "address", "decimals"]
-                    },
-                    "chain": {
-                      "type": "string"
-                    },
-                    "network": {
-                      "type": "string"
                     }
                   },
-                  "required": ["token", "chain", "network"]
+                  "required": ["message", "token"]
                 }
               }
             }
@@ -950,10 +1531,10 @@
         }
       }
     },
-    "/pools/": {
+    "/pools/{tradingPair}": {
       "get": {
         "tags": ["/pools"],
-        "description": "List all pools for a connector, optionally filtered by network, type, or search term",
+        "description": "Get a specific pool by trading pair",
         "parameters": [
           {
             "schema": {
@@ -977,245 +1558,6 @@
             "name": "connector",
             "required": true,
             "description": "Connector (raydium, meteora, uniswap, orca)"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "examples": {
-              "mainnet": {
-                "value": "mainnet"
-              },
-              "mainnet-beta": {
-                "value": "mainnet-beta"
-              },
-              "base": {
-                "value": "base"
-              }
-            },
-            "in": "query",
-            "name": "network",
-            "required": false,
-            "description": "Optional: filter by network (mainnet, mainnet-beta, etc)"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "examples": {
-              "amm": {
-                "value": "amm"
-              },
-              "clmm": {
-                "value": "clmm"
-              }
-            },
-            "in": "query",
-            "name": "type",
-            "required": false,
-            "description": "Optional: filter by pool type"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "description": "Optional: search by token symbol or address"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "enum": ["amm"]
-                          },
-                          {
-                            "type": "string",
-                            "enum": ["clmm"]
-                          }
-                        ]
-                      },
-                      "network": {
-                        "type": "string"
-                      },
-                      "baseSymbol": {
-                        "type": "string"
-                      },
-                      "quoteSymbol": {
-                        "type": "string"
-                      },
-                      "baseTokenAddress": {
-                        "type": "string"
-                      },
-                      "quoteTokenAddress": {
-                        "type": "string"
-                      },
-                      "feePct": {
-                        "type": "number"
-                      },
-                      "address": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "network",
-                      "baseSymbol",
-                      "quoteSymbol",
-                      "baseTokenAddress",
-                      "quoteTokenAddress",
-                      "feePct",
-                      "address"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": ["/pools"],
-        "description": "Add a new pool",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "connector": {
-                    "description": "Connector (raydium, meteora, uniswap, orca)",
-                    "type": "string",
-                    "example": "raydium"
-                  },
-                  "type": {
-                    "description": "Pool type",
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": ["amm"]
-                      },
-                      {
-                        "type": "string",
-                        "enum": ["clmm"]
-                      }
-                    ]
-                  },
-                  "network": {
-                    "description": "Network name (mainnet, mainnet-beta, etc)",
-                    "default": "mainnet-beta",
-                    "type": "string",
-                    "example": "mainnet-beta"
-                  },
-                  "address": {
-                    "description": "Pool contract address",
-                    "type": "string"
-                  },
-                  "baseSymbol": {
-                    "description": "Base token symbol (optional - fetched from pool-info if not provided)",
-                    "type": "string",
-                    "example": "SOL"
-                  },
-                  "quoteSymbol": {
-                    "description": "Quote token symbol (optional - fetched from pool-info if not provided)",
-                    "type": "string",
-                    "example": "USDC"
-                  },
-                  "baseTokenAddress": {
-                    "description": "Base token contract address",
-                    "type": "string",
-                    "example": "So11111111111111111111111111111111111111112"
-                  },
-                  "quoteTokenAddress": {
-                    "description": "Quote token contract address",
-                    "type": "string",
-                    "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                  },
-                  "feePct": {
-                    "description": "Pool fee percentage (optional - fetched from pool-info if not provided)",
-                    "minimum": 0,
-                    "maximum": 100,
-                    "type": "number",
-                    "example": 0.25
-                  }
-                },
-                "required": ["connector", "type", "network", "address", "baseTokenAddress", "quoteTokenAddress"]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["message"]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/pools/{tradingPair}": {
-      "get": {
-        "tags": ["/pools"],
-        "description": "Get a specific pool by trading pair",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "examples": {
-              "raydium": {
-                "value": "raydium"
-              },
-              "meteora": {
-                "value": "meteora"
-              },
-              "uniswap": {
-                "value": "uniswap"
-              }
-            },
-            "in": "query",
-            "name": "connector",
-            "required": true,
-            "description": "Connector (raydium, meteora, uniswap)"
           },
           {
             "schema": {
@@ -1280,16 +1622,10 @@
                   "type": "object",
                   "properties": {
                     "type": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": ["amm"]
-                        },
-                        {
-                          "type": "string",
-                          "enum": ["clmm"]
-                        }
-                      ]
+                      "description": "Pool type",
+                      "enum": ["clmm", "amm"],
+                      "type": "string",
+                      "example": "clmm"
                     },
                     "network": {
                       "type": "string"
@@ -1338,6 +1674,775 @@
                       "type": "string"
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/find/{address}": {
+      "get": {
+        "tags": ["/pools"],
+        "description": "Get detailed pool information by address from GeckoTerminal",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "solana-mainnet-beta": {
+                "value": "solana-mainnet-beta"
+              },
+              "ethereum-mainnet": {
+                "value": "ethereum-mainnet"
+              },
+              "ethereum-base": {
+                "value": "ethereum-base"
+              },
+              "ethereum-polygon": {
+                "value": "ethereum-polygon"
+              }
+            },
+            "in": "query",
+            "name": "chainNetwork",
+            "required": true,
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2": {
+                "value": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2"
+              },
+              "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640": {
+                "value": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+              }
+            },
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "description": "Pool contract address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "description": "Pool type",
+                      "enum": ["clmm", "amm"],
+                      "type": "string",
+                      "example": "clmm"
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "baseSymbol": {
+                      "type": "string"
+                    },
+                    "quoteSymbol": {
+                      "type": "string"
+                    },
+                    "baseTokenAddress": {
+                      "type": "string"
+                    },
+                    "quoteTokenAddress": {
+                      "type": "string"
+                    },
+                    "feePct": {
+                      "type": "number"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "geckoData": {
+                      "type": "object",
+                      "properties": {
+                        "volumeUsd24h": {
+                          "description": "24-hour trading volume in USD",
+                          "type": "string"
+                        },
+                        "liquidityUsd": {
+                          "description": "Total liquidity in USD",
+                          "type": "string"
+                        },
+                        "priceNative": {
+                          "description": "Base token price in quote token",
+                          "type": "string"
+                        },
+                        "priceUsd": {
+                          "description": "Base token price in USD",
+                          "type": "string"
+                        },
+                        "buys24h": {
+                          "description": "Number of buy transactions in 24h",
+                          "type": "number"
+                        },
+                        "sells24h": {
+                          "description": "Number of sell transactions in 24h",
+                          "type": "number"
+                        },
+                        "apr": {
+                          "description": "Annual percentage rate",
+                          "type": "number"
+                        },
+                        "timestamp": {
+                          "description": "Unix timestamp (ms) when data was fetched",
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "volumeUsd24h",
+                        "liquidityUsd",
+                        "priceNative",
+                        "priceUsd",
+                        "buys24h",
+                        "sells24h",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "network",
+                    "baseSymbol",
+                    "quoteSymbol",
+                    "baseTokenAddress",
+                    "quoteTokenAddress",
+                    "feePct",
+                    "address"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/find": {
+      "get": {
+        "tags": ["/pools"],
+        "description": "Find pools for a token pair from GeckoTerminal",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "solana-mainnet-beta": {
+                "value": "solana-mainnet-beta"
+              },
+              "ethereum-mainnet": {
+                "value": "ethereum-mainnet"
+              },
+              "ethereum-base": {
+                "value": "ethereum-base"
+              },
+              "ethereum-polygon": {
+                "value": "ethereum-polygon"
+              }
+            },
+            "in": "query",
+            "name": "chainNetwork",
+            "required": true,
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "raydium": {
+                "value": "raydium"
+              },
+              "meteora": {
+                "value": "meteora"
+              },
+              "uniswap": {
+                "value": "uniswap"
+              },
+              "pancakeswap": {
+                "value": "pancakeswap"
+              },
+              "pancakeswap-sol": {
+                "value": "pancakeswap-sol"
+              },
+              "orca": {
+                "value": "orca"
+              }
+            },
+            "in": "query",
+            "name": "connector",
+            "required": false,
+            "description": "Filter by connector name (e.g., raydium, meteora, uniswap, pancakeswap, pancakeswap-sol)"
+          },
+          {
+            "schema": {
+              "enum": ["clmm", "amm"],
+              "default": "clmm",
+              "type": "string"
+            },
+            "examples": {
+              "clmm": {
+                "value": "clmm"
+              },
+              "amm": {
+                "value": "amm"
+              }
+            },
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "description": "Filter by pool type: clmm (v3-style concentrated liquidity) or amm (v2-style)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "SOL": {
+                "value": "SOL"
+              },
+              "So11111111111111111111111111111111111111112": {
+                "value": "So11111111111111111111111111111111111111112"
+              },
+              "USDC": {
+                "value": "USDC"
+              }
+            },
+            "in": "query",
+            "name": "tokenA",
+            "required": false,
+            "description": "First token symbol or contract address (optional - for filtering by token pair)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "USDC": {
+                "value": "USDC"
+              },
+              "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
+                "value": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+              },
+              "SOL": {
+                "value": "SOL"
+              }
+            },
+            "in": "query",
+            "name": "tokenB",
+            "required": false,
+            "description": "Second token symbol or contract address (optional - for filtering by token pair)"
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 10,
+              "type": "number"
+            },
+            "in": "query",
+            "name": "pages",
+            "required": false,
+            "description": "Number of pages to fetch from GeckoTerminal (1-10, default: 10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "Pool type",
+                        "enum": ["clmm", "amm"],
+                        "type": "string",
+                        "example": "clmm"
+                      },
+                      "network": {
+                        "type": "string"
+                      },
+                      "baseSymbol": {
+                        "type": "string"
+                      },
+                      "quoteSymbol": {
+                        "type": "string"
+                      },
+                      "baseTokenAddress": {
+                        "type": "string"
+                      },
+                      "quoteTokenAddress": {
+                        "type": "string"
+                      },
+                      "feePct": {
+                        "type": "number"
+                      },
+                      "address": {
+                        "type": "string"
+                      },
+                      "geckoData": {
+                        "type": "object",
+                        "properties": {
+                          "volumeUsd24h": {
+                            "description": "24-hour trading volume in USD",
+                            "type": "string"
+                          },
+                          "liquidityUsd": {
+                            "description": "Total liquidity in USD",
+                            "type": "string"
+                          },
+                          "priceNative": {
+                            "description": "Base token price in quote token",
+                            "type": "string"
+                          },
+                          "priceUsd": {
+                            "description": "Base token price in USD",
+                            "type": "string"
+                          },
+                          "buys24h": {
+                            "description": "Number of buy transactions in 24h",
+                            "type": "number"
+                          },
+                          "sells24h": {
+                            "description": "Number of sell transactions in 24h",
+                            "type": "number"
+                          },
+                          "apr": {
+                            "description": "Annual percentage rate",
+                            "type": "number"
+                          },
+                          "timestamp": {
+                            "description": "Unix timestamp (ms) when data was fetched",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "volumeUsd24h",
+                          "liquidityUsd",
+                          "priceNative",
+                          "priceUsd",
+                          "buys24h",
+                          "sells24h",
+                          "timestamp"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "network",
+                      "baseSymbol",
+                      "quoteSymbol",
+                      "baseTokenAddress",
+                      "quoteTokenAddress",
+                      "feePct",
+                      "address"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/": {
+      "get": {
+        "tags": ["/pools"],
+        "description": "List all pools for a connector, optionally filtered by network, type, or search term",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "raydium": {
+                "value": "raydium"
+              },
+              "meteora": {
+                "value": "meteora"
+              },
+              "uniswap": {
+                "value": "uniswap"
+              },
+              "orca": {
+                "value": "orca"
+              }
+            },
+            "in": "query",
+            "name": "connector",
+            "required": true,
+            "description": "Connector (raydium, meteora, uniswap, orca)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "mainnet": {
+                "value": "mainnet"
+              },
+              "mainnet-beta": {
+                "value": "mainnet-beta"
+              },
+              "base": {
+                "value": "base"
+              }
+            },
+            "in": "query",
+            "name": "network",
+            "required": false,
+            "description": "Optional: filter by network (mainnet, mainnet-beta, etc)"
+          },
+          {
+            "schema": {
+              "enum": ["clmm", "amm"],
+              "type": "string"
+            },
+            "examples": {
+              "clmm": {
+                "value": "clmm"
+              },
+              "amm": {
+                "value": "amm"
+              }
+            },
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "description": "Optional: filter by pool type"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "description": "Optional: search by token symbol or address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "Pool type",
+                        "enum": ["clmm", "amm"],
+                        "type": "string",
+                        "example": "clmm"
+                      },
+                      "network": {
+                        "type": "string"
+                      },
+                      "baseSymbol": {
+                        "type": "string"
+                      },
+                      "quoteSymbol": {
+                        "type": "string"
+                      },
+                      "baseTokenAddress": {
+                        "type": "string"
+                      },
+                      "quoteTokenAddress": {
+                        "type": "string"
+                      },
+                      "feePct": {
+                        "type": "number"
+                      },
+                      "address": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "network",
+                      "baseSymbol",
+                      "quoteSymbol",
+                      "baseTokenAddress",
+                      "quoteTokenAddress",
+                      "feePct",
+                      "address"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["/pools"],
+        "description": "Add a new pool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connector": {
+                    "description": "Connector (raydium, meteora, uniswap, orca)",
+                    "type": "string",
+                    "example": "raydium"
+                  },
+                  "type": {
+                    "description": "Pool type",
+                    "enum": ["clmm", "amm"],
+                    "type": "string",
+                    "example": "clmm"
+                  },
+                  "network": {
+                    "description": "Network name (mainnet, mainnet-beta, etc)",
+                    "default": "mainnet-beta",
+                    "type": "string",
+                    "example": "mainnet-beta"
+                  },
+                  "address": {
+                    "description": "Pool contract address",
+                    "type": "string"
+                  },
+                  "baseSymbol": {
+                    "description": "Base token symbol",
+                    "type": "string",
+                    "example": "SOL"
+                  },
+                  "quoteSymbol": {
+                    "description": "Quote token symbol",
+                    "type": "string",
+                    "example": "USDC"
+                  },
+                  "baseTokenAddress": {
+                    "description": "Base token contract address",
+                    "type": "string",
+                    "example": "So11111111111111111111111111111111111111112"
+                  },
+                  "quoteTokenAddress": {
+                    "description": "Quote token contract address",
+                    "type": "string",
+                    "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                  },
+                  "feePct": {
+                    "description": "Pool fee percentage (optional - fetched from pool-info if not provided)",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "type": "number",
+                    "example": 0.25
+                  }
+                },
+                "required": [
+                  "connector",
+                  "type",
+                  "network",
+                  "address",
+                  "baseSymbol",
+                  "quoteSymbol",
+                  "baseTokenAddress",
+                  "quoteTokenAddress"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["message"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/save/{address}": {
+      "post": {
+        "tags": ["/pools"],
+        "description": "Find pool from GeckoTerminal and save it to the pool list",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "solana-mainnet-beta": {
+                "value": "solana-mainnet-beta"
+              },
+              "ethereum-mainnet": {
+                "value": "ethereum-mainnet"
+              },
+              "ethereum-base": {
+                "value": "ethereum-base"
+              },
+              "ethereum-polygon": {
+                "value": "ethereum-polygon"
+              }
+            },
+            "in": "query",
+            "name": "chainNetwork",
+            "required": true,
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2": {
+                "value": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2"
+              },
+              "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640": {
+                "value": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+              }
+            },
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "description": "Pool contract address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "pool": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "description": "Pool type",
+                          "enum": ["clmm", "amm"],
+                          "type": "string",
+                          "example": "clmm"
+                        },
+                        "network": {
+                          "type": "string"
+                        },
+                        "baseSymbol": {
+                          "type": "string"
+                        },
+                        "quoteSymbol": {
+                          "type": "string"
+                        },
+                        "baseTokenAddress": {
+                          "type": "string"
+                        },
+                        "quoteTokenAddress": {
+                          "type": "string"
+                        },
+                        "feePct": {
+                          "type": "number"
+                        },
+                        "address": {
+                          "type": "string"
+                        },
+                        "geckoData": {
+                          "type": "object",
+                          "properties": {
+                            "volumeUsd24h": {
+                              "description": "24-hour trading volume in USD",
+                              "type": "string"
+                            },
+                            "liquidityUsd": {
+                              "description": "Total liquidity in USD",
+                              "type": "string"
+                            },
+                            "priceNative": {
+                              "description": "Base token price in quote token",
+                              "type": "string"
+                            },
+                            "priceUsd": {
+                              "description": "Base token price in USD",
+                              "type": "string"
+                            },
+                            "buys24h": {
+                              "description": "Number of buy transactions in 24h",
+                              "type": "number"
+                            },
+                            "sells24h": {
+                              "description": "Number of sell transactions in 24h",
+                              "type": "number"
+                            },
+                            "apr": {
+                              "description": "Annual percentage rate",
+                              "type": "number"
+                            },
+                            "timestamp": {
+                              "description": "Unix timestamp (ms) when data was fetched",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "volumeUsd24h",
+                            "liquidityUsd",
+                            "priceNative",
+                            "priceUsd",
+                            "buys24h",
+                            "sells24h",
+                            "timestamp"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "network",
+                        "baseSymbol",
+                        "quoteSymbol",
+                        "baseTokenAddress",
+                        "quoteTokenAddress",
+                        "feePct",
+                        "address"
+                      ]
+                    }
+                  },
+                  "required": ["message", "pool"]
                 }
               }
             }
@@ -1731,20 +2836,22 @@
         "parameters": [
           {
             "schema": {
-              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap"],
-              "default": "raydium",
+              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap", "orca"],
+              "default": "meteora",
               "type": "string"
             },
+            "example": "meteora",
             "in": "query",
             "name": "connector",
             "required": true,
-            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)"
+            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)"
           },
           {
             "schema": {
               "default": "solana-mainnet-beta",
               "type": "string"
             },
+            "example": "solana-mainnet-beta",
             "in": "query",
             "name": "chainNetwork",
             "required": true,
@@ -1754,6 +2861,7 @@
             "schema": {
               "type": "string"
             },
+            "example": "2sf5NYcY4zUPXUSmG6f66mskb24t5F8S11pC1Nz5nQT3",
             "in": "query",
             "name": "poolAddress",
             "required": true,
@@ -1800,7 +2908,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -1821,20 +2928,22 @@
         "parameters": [
           {
             "schema": {
-              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap"],
-              "default": "raydium",
+              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap", "orca"],
+              "default": "meteora",
               "type": "string"
             },
+            "example": "meteora",
             "in": "query",
             "name": "connector",
             "required": true,
-            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)"
+            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)"
           },
           {
             "schema": {
               "default": "solana-mainnet-beta",
               "type": "string"
             },
+            "example": "solana-mainnet-beta",
             "in": "query",
             "name": "chainNetwork",
             "required": true,
@@ -1844,19 +2953,11 @@
             "schema": {
               "type": "string"
             },
+            "example": "\u003Csample-position-address\u003E",
             "in": "query",
             "name": "positionAddress",
             "required": true,
             "description": "Position address or NFT token ID"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "walletAddress",
-            "required": false,
-            "description": "Wallet address (required for Meteora, optional for others)"
           }
         ],
         "responses": {
@@ -1905,6 +3006,12 @@
                     },
                     "price": {
                       "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
+                      "type": "number"
                     }
                   },
                   "required": [
@@ -1936,20 +3043,22 @@
         "parameters": [
           {
             "schema": {
-              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap"],
-              "default": "raydium",
+              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap", "orca"],
+              "default": "meteora",
               "type": "string"
             },
+            "example": "meteora",
             "in": "query",
             "name": "connector",
             "required": true,
-            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)"
+            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)"
           },
           {
             "schema": {
               "default": "solana-mainnet-beta",
               "type": "string"
             },
+            "example": "solana-mainnet-beta",
             "in": "query",
             "name": "chainNetwork",
             "required": true,
@@ -1957,6 +3066,7 @@
           },
           {
             "schema": {
+              "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
               "type": "string"
             },
             "in": "query",
@@ -2013,6 +3123,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -2039,6 +3155,137 @@
         }
       }
     },
+    "/trading/clmm/quote-position": {
+      "get": {
+        "tags": ["/trading/clmm"],
+        "description": "Quote amounts for a new CLMM position from any supported connector",
+        "parameters": [
+          {
+            "schema": {
+              "enum": ["raydium", "meteora", "pancakeswap-sol", "uniswap", "pancakeswap", "orca"],
+              "default": "meteora",
+              "type": "string"
+            },
+            "example": "meteora",
+            "in": "query",
+            "name": "connector",
+            "required": true,
+            "description": "CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)"
+          },
+          {
+            "schema": {
+              "default": "solana-mainnet-beta",
+              "type": "string"
+            },
+            "example": "solana-mainnet-beta",
+            "in": "query",
+            "name": "chainNetwork",
+            "required": true,
+            "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)"
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "example": 150,
+            "in": "query",
+            "name": "lowerPrice",
+            "required": true,
+            "description": "Lower price bound for the position"
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "example": 250,
+            "in": "query",
+            "name": "upperPrice",
+            "required": true,
+            "description": "Upper price bound for the position"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "example": "2sf5NYcY4zUPXUSmG6f66mskb24t5F8S11pC1Nz5nQT3",
+            "in": "query",
+            "name": "poolAddress",
+            "required": true,
+            "description": "Pool contract address"
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "example": 0.01,
+            "in": "query",
+            "name": "baseTokenAmount",
+            "required": false,
+            "description": "Amount of base token to deposit"
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "example": 2,
+            "in": "query",
+            "name": "quoteTokenAmount",
+            "required": false,
+            "description": "Amount of quote token to deposit"
+          },
+          {
+            "schema": {
+              "minimum": 0,
+              "maximum": 100,
+              "default": 1,
+              "type": "number"
+            },
+            "example": 1,
+            "in": "query",
+            "name": "slippagePct",
+            "required": false,
+            "description": "Maximum acceptable slippage percentage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "baseLimited": {
+                      "type": "boolean"
+                    },
+                    "baseTokenAmount": {
+                      "type": "number"
+                    },
+                    "quoteTokenAmount": {
+                      "type": "number"
+                    },
+                    "baseTokenAmountMax": {
+                      "type": "number"
+                    },
+                    "quoteTokenAmountMax": {
+                      "type": "number"
+                    },
+                    "liquidity": {}
+                  },
+                  "required": [
+                    "baseLimited",
+                    "baseTokenAmount",
+                    "quoteTokenAmount",
+                    "baseTokenAmountMax",
+                    "quoteTokenAmountMax"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trading/clmm/open": {
       "post": {
         "tags": ["/trading/clmm"],
@@ -2050,39 +3297,57 @@
                 "type": "object",
                 "properties": {
                   "connector": {
-                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)",
-                    "type": "string"
+                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)",
+                    "default": "meteora",
+                    "type": "string",
+                    "example": "meteora"
                   },
-                  "network": {
-                    "description": "Network name",
-                    "type": "string"
+                  "chainNetwork": {
+                    "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)",
+                    "default": "solana-mainnet-beta",
+                    "type": "string",
+                    "example": "solana-mainnet-beta"
                   },
                   "walletAddress": {
                     "description": "Wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
                     "type": "string"
                   },
                   "lowerPrice": {
-                    "type": "number"
+                    "description": "Lower price bound for the position",
+                    "type": "number",
+                    "example": 150
                   },
                   "upperPrice": {
-                    "type": "number"
+                    "description": "Upper price bound for the position",
+                    "type": "number",
+                    "example": 250
                   },
                   "poolAddress": {
-                    "type": "string"
+                    "description": "Pool address",
+                    "type": "string",
+                    "example": "2sf5NYcY4zUPXUSmG6f66mskb24t5F8S11pC1Nz5nQT3"
                   },
                   "baseTokenAmount": {
-                    "type": "number"
+                    "description": "Amount of base token to deposit",
+                    "type": "number",
+                    "example": 0.01
                   },
                   "quoteTokenAmount": {
-                    "type": "number"
+                    "description": "Amount of quote token to deposit",
+                    "type": "number",
+                    "example": 2
                   },
                   "slippagePct": {
                     "minimum": 0,
                     "maximum": 100,
-                    "type": "number"
+                    "description": "Maximum acceptable slippage percentage",
+                    "default": 1,
+                    "type": "number",
+                    "example": 1
                   }
                 },
-                "required": ["connector", "network", "walletAddress", "lowerPrice", "upperPrice", "poolAddress"]
+                "required": ["connector", "chainNetwork", "walletAddress", "lowerPrice", "upperPrice", "poolAddress"]
               }
             }
           },
@@ -2150,38 +3415,49 @@
                 "type": "object",
                 "properties": {
                   "connector": {
-                    "description": "Connector name",
-                    "type": "string"
+                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)",
+                    "default": "meteora",
+                    "type": "string",
+                    "example": "meteora"
                   },
-                  "network": {
-                    "description": "Network name",
-                    "type": "string"
+                  "chainNetwork": {
+                    "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)",
+                    "default": "solana-mainnet-beta",
+                    "type": "string",
+                    "example": "solana-mainnet-beta"
                   },
                   "walletAddress": {
                     "description": "Wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
                     "type": "string"
                   },
                   "positionAddress": {
                     "description": "Position address",
-                    "type": "string"
+                    "type": "string",
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "baseTokenAmount": {
-                    "description": "Base token amount",
-                    "type": "number"
+                    "description": "Amount of base token to deposit",
+                    "type": "number",
+                    "example": 0.01
                   },
                   "quoteTokenAmount": {
-                    "description": "Quote token amount",
-                    "type": "number"
+                    "description": "Amount of quote token to deposit",
+                    "type": "number",
+                    "example": 2
                   },
                   "slippagePct": {
                     "minimum": 0,
                     "maximum": 100,
-                    "type": "number"
+                    "description": "Maximum acceptable slippage percentage",
+                    "default": 1,
+                    "type": "number",
+                    "example": 1
                   }
                 },
                 "required": [
                   "connector",
-                  "network",
+                  "chainNetwork",
                   "walletAddress",
                   "positionAddress",
                   "baseTokenAmount",
@@ -2242,28 +3518,37 @@
                 "type": "object",
                 "properties": {
                   "connector": {
-                    "description": "Connector name",
-                    "type": "string"
+                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)",
+                    "default": "meteora",
+                    "type": "string",
+                    "example": "meteora"
                   },
-                  "network": {
-                    "description": "Network name",
-                    "type": "string"
+                  "chainNetwork": {
+                    "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)",
+                    "default": "solana-mainnet-beta",
+                    "type": "string",
+                    "example": "solana-mainnet-beta"
                   },
                   "walletAddress": {
                     "description": "Wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
                     "type": "string"
                   },
                   "positionAddress": {
                     "description": "Position address",
-                    "type": "string"
+                    "type": "string",
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "percentageToRemove": {
                     "minimum": 0,
                     "maximum": 100,
-                    "type": "number"
+                    "description": "Percentage of liquidity to remove",
+                    "default": 100,
+                    "type": "number",
+                    "example": 100
                   }
                 },
-                "required": ["connector", "network", "walletAddress", "positionAddress", "percentageToRemove"]
+                "required": ["connector", "chainNetwork", "walletAddress", "positionAddress", "percentageToRemove"]
               }
             }
           },
@@ -2319,23 +3604,29 @@
                 "type": "object",
                 "properties": {
                   "connector": {
-                    "description": "Connector name",
-                    "type": "string"
+                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)",
+                    "default": "meteora",
+                    "type": "string",
+                    "example": "meteora"
                   },
-                  "network": {
-                    "description": "Network name",
-                    "type": "string"
+                  "chainNetwork": {
+                    "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)",
+                    "default": "solana-mainnet-beta",
+                    "type": "string",
+                    "example": "solana-mainnet-beta"
                   },
                   "walletAddress": {
                     "description": "Wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
                     "type": "string"
                   },
                   "positionAddress": {
                     "description": "Position address",
-                    "type": "string"
+                    "type": "string",
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
-                "required": ["connector", "network", "walletAddress", "positionAddress"]
+                "required": ["connector", "chainNetwork", "walletAddress", "positionAddress"]
               }
             }
           },
@@ -2391,23 +3682,29 @@
                 "type": "object",
                 "properties": {
                   "connector": {
-                    "description": "Connector name",
-                    "type": "string"
+                    "description": "Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)",
+                    "default": "meteora",
+                    "type": "string",
+                    "example": "meteora"
                   },
-                  "network": {
-                    "description": "Network name",
-                    "type": "string"
+                  "chainNetwork": {
+                    "description": "Chain and network in format: chain-network (e.g., solana-mainnet-beta, ethereum-mainnet)",
+                    "default": "solana-mainnet-beta",
+                    "type": "string",
+                    "example": "solana-mainnet-beta"
                   },
                   "walletAddress": {
                     "description": "Wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
                     "type": "string"
                   },
                   "positionAddress": {
                     "description": "Position address",
-                    "type": "string"
+                    "type": "string",
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
-                "required": ["connector", "network", "walletAddress", "positionAddress"]
+                "required": ["connector", "chainNetwork", "walletAddress", "positionAddress"]
               }
             }
           },
@@ -2595,7 +3892,7 @@
     "/chains/solana/balances": {
       "post": {
         "tags": ["/chain/solana"],
-        "description": "Get token balances for a Solana address. If no tokens specified or empty array provided, returns non-zero balances for tokens from the token list that are found in the wallet (includes SOL even if zero). If specific tokens are requested, returns those exact tokens with their balances, including zeros.",
+        "description": "Get token balances for a Solana address. Only returns tokens in the network's token list. If no tokens specified or empty array provided, returns non-zero balances for tokens from the token list that are found in the wallet (includes SOL even if zero). If specific tokens are requested, returns those exact tokens with their balances, including zeros.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2614,17 +3911,12 @@
                     "type": "string"
                   },
                   "tokens": {
-                    "description": "A list of token symbols (SOL, USDC, BONK) or token mint addresses. Both formats are accepted and will be automatically detected. An empty array is treated the same as if the parameter was not provided, returning only non-zero balances (with the exception of SOL).",
+                    "description": "A list of token symbols (SOL, USDC, BONK) from the network's token list. Only tokens in the token list will be returned. An empty array is treated the same as if the parameter was not provided, returning only non-zero balances (with the exception of SOL).",
                     "type": "array",
                     "items": {
                       "type": "string"
                     },
                     "example": ["SOL", "USDC", "BONK"]
-                  },
-                  "fetchAll": {
-                    "description": "Whether to fetch all tokens in wallet, not just those in token list",
-                    "default": false,
-                    "type": "boolean"
                   }
                 }
               }
@@ -2633,7 +3925,7 @@
         },
         "responses": {
           "200": {
-            "description": "Token balances for the specified address",
+            "description": "Token balances for the specified address (only tokens in token list)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2647,26 +3939,13 @@
                     }
                   },
                   "required": ["balances"],
-                  "description": "Token balances for the specified address"
+                  "description": "Token balances for the specified address (only tokens in token list)"
                 },
-                "examples": {
-                  "example1": {
-                    "value": {
-                      "balances": {
-                        "SOL": 1.5,
-                        "USDC": 100,
-                        "BONK": 50000
-                      }
-                    }
-                  },
-                  "example2": {
-                    "value": {
-                      "balances": {
-                        "SOL": 1.5,
-                        "USDC": 100,
-                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 25
-                      }
-                    }
+                "example": {
+                  "balances": {
+                    "SOL": 1.5,
+                    "USDC": 100,
+                    "BONK": 50000
                   }
                 }
               }
@@ -2776,6 +4055,160 @@
                     }
                   },
                   "required": ["currentBlock", "signature", "txBlock", "txStatus", "fee", "txData"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chains/solana/wrap": {
+      "post": {
+        "tags": ["/chain/solana"],
+        "description": "Wrap SOL to WSOL (Wrapped SOL)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "description": "The Solana network to use",
+                    "default": "mainnet-beta",
+                    "enum": ["devnet", "mainnet-beta"],
+                    "type": "string"
+                  },
+                  "address": {
+                    "description": "Solana wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
+                    "type": "string"
+                  },
+                  "amount": {
+                    "description": "The amount of SOL to wrap (in SOL, not lamports)",
+                    "type": "string",
+                    "example": "1.0"
+                  }
+                },
+                "required": ["amount"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signature": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "TransactionStatus enum value",
+                      "type": "number"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fee": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "string"
+                        },
+                        "wrappedAddress": {
+                          "type": "string"
+                        },
+                        "nativeToken": {
+                          "type": "string"
+                        },
+                        "wrappedToken": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["fee", "amount", "wrappedAddress", "nativeToken", "wrappedToken"]
+                    }
+                  },
+                  "required": ["signature", "status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chains/solana/unwrap": {
+      "post": {
+        "tags": ["/chain/solana"],
+        "description": "Unwrap WSOL to SOL. Note: This closes the entire WSOL account, returning all WSOL as SOL.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "description": "The Solana network to use",
+                    "default": "mainnet-beta",
+                    "enum": ["devnet", "mainnet-beta"],
+                    "type": "string"
+                  },
+                  "address": {
+                    "description": "Solana wallet address",
+                    "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
+                    "type": "string"
+                  },
+                  "amount": {
+                    "description": "The amount of WSOL to unwrap (in SOL, not lamports). If not provided, unwraps all WSOL.",
+                    "type": "string",
+                    "example": "1.0"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signature": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "TransactionStatus enum value",
+                      "type": "number"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fee": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "string"
+                        },
+                        "wrappedAddress": {
+                          "type": "string"
+                        },
+                        "nativeToken": {
+                          "type": "string"
+                        },
+                        "wrappedToken": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["fee", "amount", "wrappedAddress", "nativeToken", "wrappedToken"]
+                    }
+                  },
+                  "required": ["signature", "status"]
                 }
               }
             }
@@ -4004,7 +5437,6 @@
                       "address",
                       "baseTokenAddress",
                       "quoteTokenAddress",
-                      "binStep",
                       "feePct",
                       "price",
                       "baseTokenAmount",
@@ -4118,7 +5550,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -4211,6 +5642,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -4256,22 +5693,11 @@
             "schema": {
               "type": "string"
             },
-            "example": "<sample-position-address>",
+            "example": "\u003Csample-position-address\u003E",
             "in": "query",
             "name": "positionAddress",
             "required": true,
             "description": "Position NFT address"
-          },
-          {
-            "schema": {
-              "default": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
-              "type": "string"
-            },
-            "example": "Fxu7UU5D9ry1qDQj41Yp3oTeAdqxShzVYna44JE7E1gn",
-            "in": "query",
-            "name": "walletAddress",
-            "required": false,
-            "description": "Solana wallet address"
           }
         ],
         "responses": {
@@ -4319,6 +5745,12 @@
                       "type": "number"
                     },
                     "price": {
+                      "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
                       "type": "number"
                     }
                   },
@@ -4425,7 +5857,7 @@
           },
           {
             "schema": {
-              "enum": [0, 1, 2, 3, 4, 5],
+              "enum": [0, 1, 2],
               "type": "number"
             },
             "example": 0,
@@ -4793,7 +6225,7 @@
                   },
                   "strategyType": {
                     "description": "Strategy type for the position",
-                    "enum": [0, 1, 2, 3, 4, 5],
+                    "enum": [0, 1, 2],
                     "type": "number",
                     "example": 0
                   }
@@ -4880,7 +6312,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "baseTokenAmount": {
                     "description": "Amount of base token to deposit",
@@ -4902,7 +6334,7 @@
                   },
                   "strategyType": {
                     "description": "Strategy type for the position",
-                    "enum": [0, 1, 2, 3, 4, 5],
+                    "enum": [0, 1, 2],
                     "type": "number",
                     "example": 0
                   }
@@ -4977,7 +6409,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "liquidityPct": {
                     "minimum": 0,
@@ -5058,7 +6490,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
                 "required": ["positionAddress"]
@@ -5131,7 +6563,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
                 "required": ["positionAddress"]
@@ -5286,7 +6718,6 @@
                       "address",
                       "baseTokenAddress",
                       "quoteTokenAddress",
-                      "binStep",
                       "feePct",
                       "price",
                       "baseTokenAmount",
@@ -5383,7 +6814,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -5488,6 +6918,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -5533,7 +6969,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "<sample-position-address>",
+            "example": "\u003Csample-position-address\u003E",
             "in": "query",
             "name": "positionAddress",
             "required": true,
@@ -5596,6 +7032,12 @@
                       "type": "number"
                     },
                     "price": {
+                      "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
                       "type": "number"
                     }
                   },
@@ -6140,7 +7582,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "baseTokenAmount": {
                     "description": "Amount of base token to deposit",
@@ -6230,7 +7672,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "liquidityPct": {
                     "minimum": 0,
@@ -6319,7 +7761,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
                 "required": ["positionAddress"]
@@ -6392,7 +7834,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   }
                 },
                 "required": ["positionAddress"]
@@ -7211,7 +8653,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -7300,6 +8741,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -7345,7 +8792,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "<sample-position-address>",
+            "example": "\u003Csample-position-address\u003E",
             "in": "query",
             "name": "positionAddress",
             "required": true,
@@ -7407,6 +8854,12 @@
                       "type": "number"
                     },
                     "price": {
+                      "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
                       "type": "number"
                     }
                   },
@@ -7948,7 +9401,7 @@
                   "positionAddress": {
                     "description": "Position NFT address",
                     "type": "string",
-                    "example": "<sample-position-address>"
+                    "example": "\u003Csample-position-address\u003E"
                   },
                   "baseTokenAmount": {
                     "description": "Amount of base token to add",
@@ -9402,7 +10855,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -9439,15 +10891,6 @@
             "name": "positionAddress",
             "required": true,
             "description": "Position NFT token ID"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "0xB6B3140Eb3953BCE564f937948f98Ab5A8286a50",
-            "in": "query",
-            "name": "walletAddress",
-            "required": false
           }
         ],
         "responses": {
@@ -9495,6 +10938,12 @@
                       "type": "number"
                     },
                     "price": {
+                      "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
                       "type": "number"
                     }
                   },
@@ -9593,6 +11042,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -9628,6 +11083,7 @@
               "type": "string",
               "default": "base"
             },
+            "example": "base",
             "in": "query",
             "name": "network",
             "required": false
@@ -9636,7 +11092,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 1000,
+            "example": 2000,
             "in": "query",
             "name": "lowerPrice",
             "required": true
@@ -9652,9 +11108,10 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": "0xd0b53d9277642d899df5c87a3966a349a798f224"
             },
-            "example": "",
+            "example": "0xd0b53d9277642d899df5c87a3966a349a798f224",
             "in": "query",
             "name": "poolAddress",
             "required": true
@@ -9685,24 +11142,6 @@
             },
             "in": "query",
             "name": "slippagePct",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "WETH",
-            "in": "query",
-            "name": "baseToken",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "USDC",
-            "in": "query",
-            "name": "quoteToken",
             "required": false
           }
         ],
@@ -10860,7 +12299,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "WETH",
+            "example": "USDT",
             "in": "query",
             "name": "baseToken",
             "required": true,
@@ -10870,7 +12309,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "USDC",
+            "example": "WBNB",
             "in": "query",
             "name": "quoteToken",
             "required": true,
@@ -10880,7 +12319,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 0.001,
+            "example": 10,
             "in": "query",
             "name": "amount",
             "required": true,
@@ -11112,17 +12551,17 @@
                   "baseToken": {
                     "description": "Token to determine swap direction",
                     "type": "string",
-                    "example": "WETH"
+                    "example": "USDT"
                   },
                   "quoteToken": {
                     "description": "The other token in the pair",
                     "type": "string",
-                    "example": "USDC"
+                    "example": "WBNB"
                   },
                   "amount": {
                     "description": "Amount of base token to trade",
                     "type": "number",
-                    "example": 0.001
+                    "example": 10
                   },
                   "side": {
                     "description": "Trade direction - BUY means buying base token with quote token, SELL means selling base token for quote token",
@@ -11648,17 +13087,17 @@
                   "baseToken": {
                     "description": "Base token symbol or address",
                     "type": "string",
-                    "example": "WETH"
+                    "example": "USDT"
                   },
                   "quoteToken": {
                     "description": "Quote token symbol or address",
                     "type": "string",
-                    "example": "USDC"
+                    "example": "WBNB"
                   },
                   "amount": {
                     "description": "Amount to swap",
                     "type": "number",
-                    "example": 0.001
+                    "example": 10
                   },
                   "side": {
                     "enum": ["BUY", "SELL"],
@@ -11934,10 +13373,11 @@
         "parameters": [
           {
             "schema": {
-              "default": "mainnet",
+              "default": "bsc",
               "enum": ["arbitrum", "base", "bsc", "mainnet"],
               "type": "string"
             },
+            "example": "bsc",
             "in": "query",
             "name": "network",
             "required": false,
@@ -11947,7 +13387,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "0xd0b53d9277642d899df5c87a3966a349a798f224",
+            "example": "0x172fcd41e0913e95784454622d1c3724f546f849",
             "in": "query",
             "name": "poolAddress",
             "required": true,
@@ -11994,7 +13434,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -12016,8 +13455,9 @@
           {
             "schema": {
               "type": "string",
-              "default": "base"
+              "default": "bsc"
             },
+            "example": "bsc",
             "in": "query",
             "name": "network",
             "required": false
@@ -12031,15 +13471,6 @@
             "name": "positionAddress",
             "required": true,
             "description": "Position NFT token ID"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "0xB6B3140Eb3953BCE564f937948f98Ab5A8286a50",
-            "in": "query",
-            "name": "walletAddress",
-            "required": false
           }
         ],
         "responses": {
@@ -12088,6 +13519,12 @@
                     },
                     "price": {
                       "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
+                      "type": "number"
                     }
                   },
                   "required": [
@@ -12119,10 +13556,10 @@
         "parameters": [
           {
             "schema": {
-              "default": "base",
+              "default": "bsc",
               "type": "string"
             },
-            "example": "base",
+            "example": "bsc",
             "in": "query",
             "name": "network",
             "required": false
@@ -12185,6 +13622,12 @@
                       },
                       "price": {
                         "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
+                        "type": "number"
                       }
                     },
                     "required": [
@@ -12218,8 +13661,9 @@
           {
             "schema": {
               "type": "string",
-              "default": "base"
+              "default": "bsc"
             },
+            "example": "bsc",
             "in": "query",
             "name": "network",
             "required": false
@@ -12228,7 +13672,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 1000,
+            "example": 0.0008,
             "in": "query",
             "name": "lowerPrice",
             "required": true
@@ -12237,16 +13681,17 @@
             "schema": {
               "type": "number"
             },
-            "example": 4000,
+            "example": 0.001,
             "in": "query",
             "name": "upperPrice",
             "required": true
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": "0x172fcd41e0913e95784454622d1c3724f546f849"
             },
-            "example": "",
+            "example": "0x172fcd41e0913e95784454622d1c3724f546f849",
             "in": "query",
             "name": "poolAddress",
             "required": true
@@ -12255,7 +13700,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 0.001,
+            "example": 10,
             "in": "query",
             "name": "baseTokenAmount",
             "required": false
@@ -12264,7 +13709,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 3,
+            "example": 0.01,
             "in": "query",
             "name": "quoteTokenAmount",
             "required": false
@@ -12277,24 +13722,6 @@
             },
             "in": "query",
             "name": "slippagePct",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "WETH",
-            "in": "query",
-            "name": "baseToken",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "example": "USDC",
-            "in": "query",
-            "name": "quoteToken",
             "required": false
           }
         ],
@@ -12345,8 +13772,9 @@
           {
             "schema": {
               "type": "string",
-              "default": "base"
+              "default": "bsc"
             },
+            "example": "bsc",
             "in": "query",
             "name": "network",
             "required": false
@@ -12364,7 +13792,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "WETH",
+            "example": "USDT",
             "in": "query",
             "name": "baseToken",
             "required": true
@@ -12373,7 +13801,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "USDC",
+            "example": "WBNB",
             "in": "query",
             "name": "quoteToken",
             "required": false
@@ -12382,7 +13810,7 @@
             "schema": {
               "type": "number"
             },
-            "example": 0.001,
+            "example": 10,
             "in": "query",
             "name": "amount",
             "required": true
@@ -12489,17 +13917,17 @@
                   "baseToken": {
                     "description": "Token to determine swap direction",
                     "type": "string",
-                    "example": "WETH"
+                    "example": "USDT"
                   },
                   "quoteToken": {
                     "description": "The other token in the pair",
                     "type": "string",
-                    "example": "USDC"
+                    "example": "WBNB"
                   },
                   "amount": {
                     "description": "Amount of base token to trade",
                     "type": "number",
-                    "example": 0.001
+                    "example": 10
                   },
                   "side": {
                     "description": "Trade direction - BUY means buying base token with quote token, SELL means selling base token for quote token",
@@ -12600,7 +14028,8 @@
                 "properties": {
                   "network": {
                     "type": "string",
-                    "default": "base"
+                    "default": "bsc",
+                    "example": "bsc"
                   },
                   "walletAddress": {
                     "type": "string",
@@ -12608,35 +14037,28 @@
                   },
                   "lowerPrice": {
                     "type": "number",
-                    "example": 1000
+                    "example": 0.0008
                   },
                   "upperPrice": {
                     "type": "number",
-                    "example": 4000
+                    "example": 0.001
                   },
                   "poolAddress": {
                     "type": "string",
-                    "example": ""
+                    "default": "0x172fcd41e0913e95784454622d1c3724f546f849",
+                    "example": "0x172fcd41e0913e95784454622d1c3724f546f849"
                   },
                   "baseTokenAmount": {
                     "type": "number",
-                    "example": 0.001
+                    "example": 10
                   },
                   "quoteTokenAmount": {
                     "type": "number",
-                    "example": 3
+                    "example": 0.01
                   },
                   "slippagePct": {
                     "type": "number",
                     "example": 1
-                  },
-                  "baseToken": {
-                    "type": "string",
-                    "example": "WETH"
-                  },
-                  "quoteToken": {
-                    "type": "string",
-                    "example": "USDC"
                   }
                 },
                 "required": ["lowerPrice", "upperPrice", "poolAddress"]
@@ -12708,9 +14130,10 @@
                 "properties": {
                   "network": {
                     "description": "The EVM network to use",
-                    "default": "mainnet",
+                    "default": "bsc",
                     "enum": ["arbitrum", "base", "bsc", "mainnet"],
-                    "type": "string"
+                    "type": "string",
+                    "example": "bsc"
                   },
                   "walletAddress": {
                     "description": "Wallet address that will add liquidity",
@@ -12803,7 +14226,8 @@
                 "properties": {
                   "network": {
                     "type": "string",
-                    "default": "base"
+                    "default": "bsc",
+                    "example": "bsc"
                   },
                   "walletAddress": {
                     "type": "string",
@@ -12878,7 +14302,8 @@
                 "properties": {
                   "network": {
                     "type": "string",
-                    "default": "base"
+                    "default": "bsc",
+                    "example": "bsc"
                   },
                   "walletAddress": {
                     "type": "string",
@@ -13083,7 +14508,6 @@
                     "address",
                     "baseTokenAddress",
                     "quoteTokenAddress",
-                    "binStep",
                     "feePct",
                     "price",
                     "baseTokenAmount",
@@ -13170,6 +14594,12 @@
                     },
                     "price": {
                       "type": "number"
+                    },
+                    "rewardTokenAddress": {
+                      "type": "string"
+                    },
+                    "rewardAmount": {
+                      "type": "number"
                     }
                   },
                   "required": [
@@ -13219,6 +14649,16 @@
             "name": "walletAddress",
             "required": true,
             "description": "Solana wallet address to check for positions"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "example": "4QU2NpRaqmKMvPSwVKQDeW4V6JFEKJdkzbzdauumD9qN",
+            "in": "query",
+            "name": "poolAddress",
+            "required": false,
+            "description": "Optional pool address to filter positions by specific pool"
           }
         ],
         "responses": {
@@ -13268,6 +14708,12 @@
                         "type": "number"
                       },
                       "price": {
+                        "type": "number"
+                      },
+                      "rewardTokenAddress": {
+                        "type": "string"
+                      },
+                      "rewardAmount": {
                         "type": "number"
                       }
                     },
@@ -13359,6 +14805,19 @@
             "name": "quoteTokenAmount",
             "required": false,
             "description": "Amount of quote token to deposit"
+          },
+          {
+            "schema": {
+              "minimum": 0,
+              "maximum": 100,
+              "default": 2,
+              "type": "number"
+            },
+            "example": 2,
+            "in": "query",
+            "name": "slippagePct",
+            "required": false,
+            "description": "Maximum acceptable slippage percentage"
           }
         ],
         "responses": {
