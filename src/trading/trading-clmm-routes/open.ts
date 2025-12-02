@@ -44,7 +44,7 @@ function parseChainNetwork(chainNetwork: string): { chain: string; network: stri
 // Unified schema with connector field
 const UnifiedOpenPositionRequest = Type.Object({
   connector: Type.String({
-    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)',
+    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)',
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -94,6 +94,7 @@ const UnifiedOpenPositionRequest = Type.Object({
 
 // Import connector functions
 import { openPosition as meteoraOpenPosition } from '../../connectors/meteora/clmm-routes/openPosition';
+import { openPosition as orcaOpenPosition } from '../../connectors/orca/clmm-routes/openPosition';
 import { openPosition as pancakeswapOpenPosition } from '../../connectors/pancakeswap/clmm-routes/openPosition';
 import { openPosition as pancakeswapSolOpenPosition } from '../../connectors/pancakeswap-sol/clmm-routes/openPosition';
 import { openPosition as raydiumOpenPosition } from '../../connectors/raydium/clmm-routes/openPosition';
@@ -190,6 +191,19 @@ export const openPositionRoute: FastifyPluginAsync = async (fastify) => {
 
           case 'pancakeswap-sol':
             return await pancakeswapSolOpenPosition(
+              fastify,
+              network,
+              walletAddress,
+              poolAddress,
+              lowerPrice,
+              upperPrice,
+              baseTokenAmount,
+              quoteTokenAmount,
+              slippagePct,
+            );
+
+          case 'orca':
+            return await orcaOpenPosition(
               fastify,
               network,
               walletAddress,

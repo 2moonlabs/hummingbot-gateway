@@ -4,6 +4,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { closePosition as meteoraClosePosition } from '../../connectors/meteora/clmm-routes/closePosition';
+import { closePosition as orcaClosePosition } from '../../connectors/orca/clmm-routes/closePosition';
 import { closePosition as pancakeswapClosePosition } from '../../connectors/pancakeswap/clmm-routes/closePosition';
 import { closePosition as pancakeswapSolClosePosition } from '../../connectors/pancakeswap-sol/clmm-routes/closePosition';
 import { closePosition as raydiumClosePosition } from '../../connectors/raydium/clmm-routes/closePosition';
@@ -42,7 +43,7 @@ function parseChainNetwork(chainNetwork: string): { chain: string; network: stri
 // Unified schema with connector field
 const UnifiedClosePositionRequest = Type.Object({
   connector: Type.String({
-    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)',
+    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)',
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -102,6 +103,9 @@ export const closePositionRoute: FastifyPluginAsync = async (fastify) => {
 
           case 'pancakeswap-sol':
             return await pancakeswapSolClosePosition(fastify, network, walletAddress, positionAddress);
+
+          case 'orca':
+            return await orcaClosePosition(fastify, network, walletAddress, positionAddress);
 
           default:
             throw fastify.httpErrors.badRequest(`Unsupported connector: ${connector}`);

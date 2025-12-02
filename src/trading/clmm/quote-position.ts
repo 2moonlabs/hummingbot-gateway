@@ -4,6 +4,7 @@ import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { quotePosition as meteoraQuotePosition } from '../../connectors/meteora/clmm-routes/quotePosition';
+import { quotePosition as orcaQuotePosition } from '../../connectors/orca/clmm-routes/quotePosition';
 import { quotePosition as pancakeswapQuotePosition } from '../../connectors/pancakeswap/clmm-routes/quotePosition';
 import { quotePosition as pancakeswapSolQuotePosition } from '../../connectors/pancakeswap-sol/clmm-routes/quotePosition';
 import { quotePosition as raydiumQuotePosition } from '../../connectors/raydium/clmm-routes/quotePosition';
@@ -23,8 +24,8 @@ const CLMM_POOL_ADDRESS_EXAMPLE = '2sf5NYcY4zUPXUSmG6f66mskb24t5F8S11pC1Nz5nQT3'
  */
 const UnifiedQuotePositionRequestSchema = Type.Object({
   connector: Type.String({
-    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)',
-    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap'],
+    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)',
+    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap', 'orca'],
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -136,6 +137,17 @@ async function getSolanaQuotePosition(
         poolAddress,
         baseTokenAmount,
         quoteTokenAmount,
+      );
+    case 'orca':
+      return await orcaQuotePosition(
+        fastify,
+        network,
+        lowerPrice,
+        upperPrice,
+        poolAddress,
+        baseTokenAmount,
+        quoteTokenAmount,
+        slippagePct,
       );
     default:
       throw fastify.httpErrors.badRequest(`Unsupported Solana CLMM connector: ${connector}`);
