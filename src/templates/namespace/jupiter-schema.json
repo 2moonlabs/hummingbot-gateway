@@ -21,10 +21,6 @@
     "restrictIntermediateTokens": {
       "type": "boolean",
       "description": "Restrict routing through highly liquid intermediate tokens only"
-    },
-    "apiKey": {
-      "type": "string",
-      "description": "Jupiter API key for paid plans. Leave empty for free tier."
     }
   },
   "additionalProperties": false,

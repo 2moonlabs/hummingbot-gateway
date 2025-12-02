@@ -2,11 +2,9 @@ import { logger } from './logger';
 
 /**
  * Configuration interface for all RPC providers
- * Matches the shared rpc-provider-schema.json
  */
 export interface RPCProviderConfig {
   apiKey: string;
-  useWebSocket: boolean;
 }
 
 /**
@@ -75,14 +73,6 @@ export abstract class RPCProvider {
       !this.config.apiKey.includes('YOUR_') &&
       !this.config.apiKey.includes('_API_KEY_HERE')
     );
-  }
-
-  /**
-   * Check if WebSocket should be used
-   * Requires both useWebSocket config and valid API key
-   */
-  protected shouldUseWebSocket(): boolean {
-    return this.config.useWebSocket && this.isApiKeyValid();
   }
 
   /**

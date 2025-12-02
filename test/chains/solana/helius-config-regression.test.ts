@@ -38,7 +38,6 @@ rpcProvider: helius
 `;
 
       const heliusConfig = `apiKey: 'test-api-key-for-regression-test'
-useWebSocket: false
 `;
 
       // Ensure directories exist

@@ -100,15 +100,12 @@ export class Solana {
    */
   private initializeHeliusProvider() {
     try {
-      // Load Helius config from rpc/helius.yml
+      // Load Helius config from apiKeys.yml
       const configManager = ConfigManagerV2.getInstance();
-      const providerConfig = {
-        apiKey: configManager.get('helius.apiKey') || '',
-        useWebSocket: configManager.get('helius.useWebSocket') || false,
-      };
+      const apiKey = configManager.get('apiKeys.helius') || '';
 
       // Validate API key
-      if (!providerConfig.apiKey || providerConfig.apiKey.trim() === '' || providerConfig.apiKey.includes('YOUR_')) {
+      if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
         logger.warn(`⚠️ Helius provider selected but no valid API key configured`);
         logger.info(`Using standard RPC from nodeURL: ${redactUrl(this.config.nodeURL)}`);
         this.connection = createRateLimitAwareSolanaConnection(
@@ -121,17 +118,15 @@ export class Solana {
       }
 
       // Create HeliusService instance
-      this.rpcProviderService = new HeliusService(providerConfig, {
-        chain: 'solana',
-        network: this.network,
-        chainId: this.config.chainID,
-      });
+      this.rpcProviderService = new HeliusService(
+        { apiKey },
+        { chain: 'solana', network: this.network, chainId: this.config.chainID },
+      );
 
       // Use Helius HTTP URL for connection
       const rpcUrl = this.rpcProviderService.getHttpUrl();
       logger.info(`Initializing Solana connector for network: ${this.network}, RPC URL: ${redactUrl(rpcUrl)}`);
-      logger.info(`✅ Helius API key configured (length: ${providerConfig.apiKey.length} chars)`);
-      logger.info(`Helius transaction monitoring: ${providerConfig.useWebSocket ? 'WebSocket' : 'REST polling'}`);
+      logger.info(`✅ Helius API key configured (length: ${apiKey.length} chars)`);
 
       this.connection = createRateLimitAwareSolanaConnection(
         new Connection(rpcUrl, {

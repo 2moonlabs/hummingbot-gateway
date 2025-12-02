@@ -128,13 +128,13 @@ ask_config_choices () {
   else
     UPDATE_POOLS="N"
   fi
-  
-  # Ask about rpc folder
-  if prompt_yes_no "  - rpc/ (RPC provider configurations like Helius, Infura)?" "Y"; then
-    UPDATE_RPC="Y"
-    PLANNED_UPDATES="${PLANNED_UPDATES}rpc/, "
+
+  # Ask about apiKeys.yml (default to No to avoid overwriting user's keys)
+  if prompt_yes_no "  - apiKeys.yml (API keys for Helius, Infura, Jupiter, etc.)?" "N"; then
+    UPDATE_APIKEYS="Y"
+    PLANNED_UPDATES="${PLANNED_UPDATES}apiKeys.yml, "
   else
-    UPDATE_RPC="N"
+    UPDATE_APIKEYS="N"
   fi
   
   # Remove trailing comma and space
@@ -220,11 +220,11 @@ copy_configs () {
     cp -r $TEMPLATE_DIR/pools $HOST_CONF_PATH/
     UPDATED_ITEMS="${UPDATED_ITEMS}pools/, "
   fi
-  
-  # Copy rpc folder if selected
-  if [ "$UPDATE_RPC" = "Y" ]; then
-    cp -r $TEMPLATE_DIR/rpc $HOST_CONF_PATH/
-    UPDATED_ITEMS="${UPDATED_ITEMS}rpc/, "
+
+  # Copy apiKeys.yml if selected
+  if [ "$UPDATE_APIKEYS" = "Y" ]; then
+    cp $TEMPLATE_DIR/apiKeys.yml $HOST_CONF_PATH/
+    UPDATED_ITEMS="${UPDATED_ITEMS}apiKeys.yml, "
   fi
   
   # Note: wallets folder is preserved and never overwritten
@@ -348,8 +348,8 @@ fi
 if [ "$UPDATE_POOLS" = "Y" ]; then
   echo "   - pools/ (default pool lists for each DEX connector)"
 fi
-if [ "$UPDATE_RPC" = "Y" ]; then
-  echo "   - rpc/ (RPC provider configurations like Helius, Infura)"
+if [ "$UPDATE_APIKEYS" = "Y" ]; then
+  echo "   - apiKeys.yml (API keys for Helius, Infura, Jupiter, etc.)"
 fi
 echo "   - root.yml (always updated - essential file)"
 echo "   - namespaces/ (always updated - config schemas)"
@@ -358,6 +358,11 @@ echo "   - namespaces/ (always updated - config schemas)"
 if [ -d "$HOST_CONF_PATH/wallets" ]; then
   echo
   echo "✅ Existing wallets/ directory will be preserved"
+fi
+
+# Show apiKeys preservation status
+if [ "$UPDATE_APIKEYS" != "Y" ] && [ -f "$HOST_CONF_PATH/apiKeys.yml" ]; then
+  echo "✅ Existing apiKeys.yml will be preserved"
 fi
 
 # Check for existing defaultWallet values if chains will be updated

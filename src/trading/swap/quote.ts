@@ -377,7 +377,10 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
         return reply.code(200).send(result);
       } catch (error: any) {
         logger.error(`[UnifiedSwap] Quote error: ${error.message}`);
-        throw error;
+        if (error.statusCode) {
+          throw error;
+        }
+        throw fastify.httpErrors.internalServerError(error.message || 'Failed to get swap quote');
       }
     },
   );

@@ -458,7 +458,10 @@ export const executeSwapRoute: FastifyPluginAsync = async (fastify) => {
         return reply.code(200).send(result);
       } catch (error: any) {
         logger.error(`[UnifiedSwap] Execute error: ${error.message}`);
-        throw error;
+        if (error.statusCode) {
+          throw error;
+        }
+        throw fastify.httpErrors.internalServerError(error.message || 'Failed to execute swap');
       }
     },
   );

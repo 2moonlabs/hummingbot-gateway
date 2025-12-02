@@ -14,7 +14,6 @@ describe('HeliusService WebSocket Functionality', () => {
   beforeEach(() => {
     mockConfig = {
       apiKey: 'test-api-key-123',
-      useWebSocket: true,
     };
 
     // Create mock WebSocket instance with automatic 'open' event triggering
@@ -76,27 +75,9 @@ describe('HeliusService WebSocket Functionality', () => {
       expect(WebSocket).toHaveBeenCalledWith('wss://devnet.helius-rpc.com/?api-key=test-api-key-123');
     });
 
-    it('should not support transaction monitoring if useWebSocket is false', async () => {
-      const configWithoutWs = {
-        apiKey: 'test-api-key-123',
-        useWebSocket: false,
-      };
-      heliusService = new HeliusService(configWithoutWs, {
-        chain: 'solana',
-        network: 'mainnet-beta',
-        chainId: 101,
-      });
-
-      await heliusService.initialize();
-
-      expect(heliusService.supportsTransactionMonitoring()).toBe(false);
-      expect(WebSocket).not.toHaveBeenCalled();
-    });
-
     it('should not support transaction monitoring if API key is missing', async () => {
       const configWithoutKey = {
         apiKey: '',
-        useWebSocket: true,
       };
       heliusService = new HeliusService(configWithoutKey, {
         chain: 'solana',
@@ -366,12 +347,11 @@ describe('HeliusService WebSocket Functionality', () => {
       await expect(monitorPromise).rejects.toThrow('WebSocket error: Invalid params');
     });
 
-    it('should throw error if WebSocket not available (useWebSocket=false)', async () => {
-      const configWithoutWs = {
-        apiKey: 'test-api-key-123',
-        useWebSocket: false,
+    it('should throw error if WebSocket not available (no API key)', async () => {
+      const configWithoutKey = {
+        apiKey: '',
       };
-      heliusService = new HeliusService(configWithoutWs, {
+      heliusService = new HeliusService(configWithoutKey, {
         chain: 'solana',
         network: 'mainnet-beta',
         chainId: 101,

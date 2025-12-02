@@ -214,7 +214,7 @@ export class CoinGeckoService {
 
   private constructor() {
     const configManager = ConfigManagerV2.getInstance();
-    this.apiKey = configManager.get('server.coingeckoAPIKey');
+    this.apiKey = configManager.get('apiKeys.coingecko');
 
     this.client = axios.create({
       baseURL: this.baseURL,

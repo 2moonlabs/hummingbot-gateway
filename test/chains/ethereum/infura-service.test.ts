@@ -5,17 +5,7 @@ describe('InfuraService', () => {
   const testApiKey = 'test-infura-key-123';
 
   beforeEach(() => {
-    infuraService = new InfuraService(
-      {
-        apiKey: testApiKey,
-        useWebSocket: false,
-      },
-      {
-        chain: 'ethereum',
-        network: 'mainnet',
-        chainId: 1,
-      },
-    );
+    infuraService = new InfuraService({ apiKey: testApiKey }, { chain: 'ethereum', network: 'mainnet', chainId: 1 });
   });
 
   describe('getHttpUrl', () => {
@@ -27,7 +17,7 @@ describe('InfuraService', () => {
 
     it('should return polygon URL for Polygon mainnet (chainID 137)', () => {
       const polygonService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'polygon', chainId: 137 },
       );
 
@@ -38,7 +28,7 @@ describe('InfuraService', () => {
 
     it('should return arbitrum URL for Arbitrum mainnet (chainID 42161)', () => {
       const arbitrumService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'arbitrum', chainId: 42161 },
       );
 
@@ -49,7 +39,7 @@ describe('InfuraService', () => {
 
     it('should return optimism URL for Optimism mainnet (chainID 10)', () => {
       const optimismService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'optimism', chainId: 10 },
       );
 
@@ -60,7 +50,7 @@ describe('InfuraService', () => {
 
     it('should return base URL for Base mainnet (chainID 8453)', () => {
       const baseService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'base', chainId: 8453 },
       );
 
@@ -71,7 +61,7 @@ describe('InfuraService', () => {
 
     it('should return avalanche URL for Avalanche mainnet (chainID 43114)', () => {
       const avalancheService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'avalanche', chainId: 43114 },
       );
 
@@ -82,7 +72,7 @@ describe('InfuraService', () => {
 
     it('should return celo URL for Celo mainnet (chainID 42220)', () => {
       const celoService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'celo', chainId: 42220 },
       );
 
@@ -93,7 +83,7 @@ describe('InfuraService', () => {
 
     it('should return sepolia URL for Sepolia testnet (chainID 11155111)', () => {
       const sepoliaService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
+        { apiKey: 'test-infura-key-123' },
         { chain: 'ethereum', network: 'sepolia', chainId: 11155111 },
       );
 
@@ -104,10 +94,7 @@ describe('InfuraService', () => {
 
     it('should throw error for unsupported chainID', () => {
       expect(() => {
-        new InfuraService(
-          { apiKey: 'test-infura-key-123', useWebSocket: false },
-          { chain: 'ethereum', network: 'unknown', chainId: 99999 },
-        );
+        new InfuraService({ apiKey: 'test-infura-key-123' }, { chain: 'ethereum', network: 'unknown', chainId: 99999 });
       }).toThrow('Infura network not supported for chainID: 99999');
     });
   });

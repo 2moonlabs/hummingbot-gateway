@@ -46,6 +46,6 @@ export function getEthereumChainConfig(): EthereumChainConfig {
     defaultNetwork: ConfigManagerV2.getInstance().get('ethereum.defaultNetwork'),
     defaultWallet: ConfigManagerV2.getInstance().get('ethereum.defaultWallet'),
     rpcProvider: ConfigManagerV2.getInstance().get('ethereum.rpcProvider') || 'url',
-    etherscanAPIKey: ConfigManagerV2.getInstance().get('ethereum.etherscanAPIKey'),
+    etherscanAPIKey: ConfigManagerV2.getInstance().get('apiKeys.etherscan'),
   };
 }

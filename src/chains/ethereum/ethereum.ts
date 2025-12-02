@@ -407,8 +407,7 @@ export class Ethereum {
     try {
       const configManager = ConfigManagerV2.getInstance();
       const providerConfig = {
-        apiKey: configManager.get('infura.apiKey') || '',
-        useWebSocket: configManager.get('infura.useWebSocket') || false,
+        apiKey: configManager.get('apiKeys.infura') || '',
       };
 
       // Validate API key

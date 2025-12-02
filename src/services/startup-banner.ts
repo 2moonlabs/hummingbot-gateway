@@ -1,6 +1,3 @@
-import { Connection } from '@solana/web3.js';
-import { ethers } from 'ethers';
-
 import { Ethereum } from '../chains/ethereum/ethereum';
 import { getEthereumNetworkConfig } from '../chains/ethereum/ethereum.config';
 import { InfuraService } from '../chains/ethereum/infura-service';
@@ -46,12 +43,11 @@ async function displaySolanaConfig(): Promise<void> {
     // If using Helius, get the Helius URL from HeliusService
     if (rpcProvider === 'helius') {
       try {
-        const heliusApiKey = config.get('helius.apiKey') || '';
-        const useWebSocket = config.get('helius.useWebSocket') || false;
+        const heliusApiKey = config.get('apiKeys.helius') || '';
 
         const networkConfig = getSolanaNetworkConfig(defaultNetwork);
         const heliusService = new HeliusService(
-          { apiKey: heliusApiKey, useWebSocket },
+          { apiKey: heliusApiKey },
           { chain: 'solana', network: defaultNetwork, chainId: networkConfig.chainID },
         );
         nodeURL = heliusService.getHttpUrl();
@@ -71,11 +67,11 @@ async function displaySolanaConfig(): Promise<void> {
       const slot = await solana.connection.getSlot();
 
       logger.info(
-        `   📡 Solana (defaultNetwork: ${defaultNetwork}): Block #${slot.toLocaleString()} - ${redactUrl(nodeURL)}`,
+        `📡 Solana (defaultNetwork: ${defaultNetwork}): Block #${slot.toLocaleString()} - ${redactUrl(nodeURL)}`,
       );
     } catch (error: any) {
       logger.info(
-        `   📡 Solana (defaultNetwork: ${defaultNetwork}): Unable to fetch block number - ${redactUrl(nodeURL)}`,
+        `📡 Solana (defaultNetwork: ${defaultNetwork}): Unable to fetch block number - ${redactUrl(nodeURL)}`,
       );
       logger.debug(`Solana block fetch error: ${error.message}`);
     }
@@ -102,12 +98,11 @@ async function displayEthereumConfig(): Promise<void> {
     // If using Infura, get the Infura URL from InfuraService
     if (rpcProvider === 'infura') {
       try {
-        const infuraApiKey = config.get('infura.apiKey') || '';
-        const useWebSocket = config.get('infura.useWebSocket') || false;
+        const infuraApiKey = config.get('apiKeys.infura') || '';
 
         const networkConfig = getEthereumNetworkConfig(defaultNetwork);
         const infuraService = new InfuraService(
-          { apiKey: infuraApiKey, useWebSocket },
+          { apiKey: infuraApiKey },
           { chain: 'ethereum', network: defaultNetwork, chainId: networkConfig.chainID },
         );
         nodeURL = infuraService.getHttpUrl();
@@ -121,17 +116,17 @@ async function displayEthereumConfig(): Promise<void> {
       return;
     }
 
-    // Fetch current block number
+    // Initialize Ethereum instance and fetch current block number
     try {
-      const provider = new ethers.providers.JsonRpcProvider(nodeURL);
-      const blockNumber = await provider.getBlockNumber();
+      const ethereum = await Ethereum.getInstance(defaultNetwork);
+      const blockNumber = await ethereum.provider.getBlockNumber();
 
       logger.info(
-        `   📡 Ethereum (defaultNetwork: ${defaultNetwork}): Block #${blockNumber.toLocaleString()} - ${redactUrl(nodeURL)}`,
+        `📡 Ethereum (defaultNetwork: ${defaultNetwork}): Block #${blockNumber.toLocaleString()} - ${redactUrl(nodeURL)}`,
       );
     } catch (error: any) {
       logger.info(
-        `   📡 Ethereum (defaultNetwork: ${defaultNetwork}): Unable to fetch block number - ${redactUrl(nodeURL)}`,
+        `📡 Ethereum (defaultNetwork: ${defaultNetwork}): Unable to fetch block number - ${redactUrl(nodeURL)}`,
       );
       logger.debug(`Ethereum block fetch error: ${error.message}`);
     }
