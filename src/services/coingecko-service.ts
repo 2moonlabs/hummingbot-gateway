@@ -35,6 +35,14 @@ const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
   // Ethereum DEXes
   uniswap_v2: { connector: 'uniswap', type: 'amm' },
   uniswap_v3: { connector: 'uniswap', type: 'clmm' },
+  // Uniswap V3 on other EVM chains (GeckoTerminal uses network-specific IDs)
+  uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_optimism: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_polygon: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_base: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_celo: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_avalanche: { connector: 'uniswap', type: 'clmm' },
+  uniswap_v3_bsc: { connector: 'uniswap', type: 'clmm' },
   sushiswap: { connector: 'sushiswap', type: 'amm' },
   sushiswap_v3: { connector: 'sushiswap', type: 'clmm' },
 
