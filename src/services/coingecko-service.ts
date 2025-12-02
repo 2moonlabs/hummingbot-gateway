@@ -24,32 +24,60 @@ export interface DexConnectorInfo {
  * This allows filtering pools by connector (raydium, meteora, etc) and type (amm, clmm)
  *
  * DEX IDs are from GeckoTerminal API: /api/v2/networks/{network}/dexes
+ * Network IDs are from GeckoTerminal API: /api/v2/networks
+ *
+ * Supported networks and their GeckoTerminal IDs:
+ * - ethereum-mainnet -> eth
+ * - ethereum-arbitrum -> arbitrum
+ * - ethereum-optimism -> optimism
+ * - ethereum-base -> base
+ * - ethereum-polygon -> polygon_pos
+ * - ethereum-avalanche -> avax
+ * - ethereum-bsc -> bsc
+ * - ethereum-celo -> celo
+ * - solana-mainnet-beta -> solana
  */
 const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
-  // Solana DEXes (from GeckoTerminal /networks/solana/dexes)
+  // ========== Solana DEXes (network: solana) ==========
   raydium: { connector: 'raydium', type: 'amm' },
   'raydium-clmm': { connector: 'raydium', type: 'clmm' },
   meteora: { connector: 'meteora', type: 'clmm' },
+  'meteora-dlmm': { connector: 'meteora', type: 'clmm' },
   'pancakeswap-v3-solana': { connector: 'pancakeswap-sol', type: 'clmm' },
 
-  // Ethereum DEXes
+  // ========== Ethereum Mainnet DEXes (network: eth) ==========
   uniswap_v2: { connector: 'uniswap', type: 'amm' },
   uniswap_v3: { connector: 'uniswap', type: 'clmm' },
-  // Uniswap V3 on other EVM chains (GeckoTerminal uses network-specific IDs)
-  uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_optimism: { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_polygon: { connector: 'uniswap', type: 'clmm' },
-  'uniswap-v3-base': { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_celo: { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_avalanche: { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_bsc: { connector: 'uniswap', type: 'clmm' },
   sushiswap: { connector: 'sushiswap', type: 'amm' },
-  sushiswap_v3: { connector: 'sushiswap', type: 'clmm' },
 
-  // BSC DEXes
+  // ========== Arbitrum DEXes (network: arbitrum) ==========
+  uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
+  sushiswap_arbitrum: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Optimism DEXes (network: optimism) ==========
+  uniswap_v3_optimism: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-optimism': { connector: 'uniswap', type: 'amm' },
+  'sushiswap-v3-optimism': { connector: 'sushiswap', type: 'clmm' },
+
+  // ========== Base DEXes (network: base) ==========
+  'uniswap-v3-base': { connector: 'uniswap', type: 'clmm' },
+  'sushiswap-v3-base': { connector: 'sushiswap', type: 'clmm' },
+
+  // ========== Polygon DEXes (network: polygon_pos) ==========
+  uniswap_v3_polygon_pos: { connector: 'uniswap', type: 'clmm' },
+  sushiswap_polygon_pos: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Avalanche DEXes (network: avax) ==========
+  sushiswap_avalanche: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== BSC DEXes (network: bsc) ==========
   pancakeswap_v2: { connector: 'pancakeswap', type: 'amm' },
   'pancakeswap-v3-bsc': { connector: 'pancakeswap', type: 'clmm' },
   sushiswap_bsc: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Celo DEXes (network: celo) ==========
+  uniswap_v3_celo: { connector: 'uniswap', type: 'clmm' },
+  sushiswap_celo: { connector: 'sushiswap', type: 'amm' },
 };
 
 /**
