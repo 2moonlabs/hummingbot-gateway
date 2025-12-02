@@ -250,12 +250,20 @@ export class Meteora {
             const baseTokenAmount = Number(convertDecimals(positionData.totalXAmount, dlmmPool.tokenX.mint.decimals));
             const quoteTokenAmount = Number(convertDecimals(positionData.totalYAmount, dlmmPool.tokenY.mint.decimals));
 
-            // NOTE: Fee calculation is skipped for batch position fetching because
-            // the positionData.feeX/feeY getters require internal state that may not be initialized
-            // when fetched via getAllLbPairPositionsByUser. Fees are set to 0.
-            // For accurate fee data, use getPositionInfo() for individual positions.
-            const baseFeeAmount = 0;
-            const quoteFeeAmount = 0;
+            // Fetch position directly from pool to get accurate fee data
+            let baseFeeAmount = 0;
+            let quoteFeeAmount = 0;
+            try {
+              const position = await dlmmPool.getPosition(publicKey);
+              if (position && position.positionData) {
+                baseFeeAmount = Number(convertDecimals(position.positionData.feeX, dlmmPool.tokenX.mint.decimals));
+                quoteFeeAmount = Number(convertDecimals(position.positionData.feeY, dlmmPool.tokenY.mint.decimals));
+              }
+            } catch (feeError) {
+              logger.warn(
+                `Could not calculate fees for position ${publicKey.toString()}, setting to 0: ${feeError.message}`,
+              );
+            }
 
             logger.debug(`Creating position info object for ${publicKey.toString()}`);
             positions.push({
