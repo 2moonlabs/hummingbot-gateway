@@ -2065,18 +2065,37 @@ export class Solana {
    * @param walletPubkey Wallet public key
    * @param amount Amount of SOL to wrap in lamports
    * @param tokenProgram Token program (default TOKEN_PROGRAM_ID)
-   * @returns Array of instructions to wrap SOL
+   * @param checkBalance If true, only wrap the difference between required amount and existing WSOL balance
+   * @returns Array of instructions to wrap SOL (empty if balance is sufficient when checkBalance is true)
    */
   public async wrapSOL(
     walletPubkey: PublicKey,
     amount: number,
     tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
+    checkBalance: boolean = false,
   ): Promise<TransactionInstruction[]> {
     const instructions: TransactionInstruction[] = [];
     const wsolAccount = getAssociatedTokenAddressSync(NATIVE_MINT, walletPubkey, false, tokenProgram);
 
     // Check if WSOL account exists
     const accountInfo = await this.connection.getAccountInfo(wsolAccount);
+
+    let amountToWrap = amount;
+
+    if (checkBalance && accountInfo) {
+      // Smart balance checking: only wrap the difference
+      const accountData = AccountLayout.decode(new Uint8Array(accountInfo.data));
+      const existingBalance = Number(accountData.amount);
+      amountToWrap = Math.max(0, amount - existingBalance);
+
+      if (amountToWrap === 0) {
+        logger.info(`WSOL: existing balance ${existingBalance} lamports is sufficient for ${amount} lamports`);
+        return instructions; // Empty, no wrapping needed
+      }
+      logger.info(
+        `WSOL: existing balance ${existingBalance} lamports, wrapping ${amountToWrap} more for ${amount} total`,
+      );
+    }
 
     if (!accountInfo) {
       instructions.push(
@@ -2089,7 +2108,7 @@ export class Solana {
       SystemProgram.transfer({
         fromPubkey: walletPubkey,
         toPubkey: wsolAccount,
-        lamports: amount,
+        lamports: amountToWrap,
       }),
     );
     instructions.push(createSyncNativeInstruction(wsolAccount, tokenProgram));
