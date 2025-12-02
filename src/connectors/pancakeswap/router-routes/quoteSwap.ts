@@ -20,7 +20,7 @@ async function quoteSwap(
   quoteToken: string,
   amount: number,
   side: 'BUY' | 'SELL',
-  slippagePct: number,
+  slippagePct: number = PancakeswapConfig.config.slippagePct,
 ): Promise<Static<typeof PancakeswapQuoteSwapResponse>> {
   logger.info(`[quoteSwap] Starting quote generation`);
   logger.info(`[quoteSwap] Network: ${network}, Wallet: ${walletAddress}`);
@@ -30,10 +30,9 @@ async function quoteSwap(
   const ethereum = await Ethereum.getInstance(network);
   const pancakeswap = await Pancakeswap.getInstance(network);
 
-  // Resolve token symbols/addresses to token objects
-  // Use getOrFetchToken to support tokens not in the token list
-  const baseTokenInfo = await ethereum.getOrFetchToken(baseToken);
-  const quoteTokenInfo = await ethereum.getOrFetchToken(quoteToken);
+  // Resolve token symbols/addresses to token objects from local token list
+  const baseTokenInfo = await ethereum.getToken(baseToken);
+  const quoteTokenInfo = await ethereum.getToken(quoteToken);
 
   if (!baseTokenInfo || !quoteTokenInfo) {
     logger.error(`[quoteSwap] Token not found: ${!baseTokenInfo ? baseToken : quoteToken}`);
@@ -165,7 +164,7 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
           quoteToken,
           amount,
           side,
-          slippagePct = PancakeswapConfig.config.slippagePct,
+          slippagePct,
         } = request.query as typeof PancakeswapQuoteSwapRequest._type;
 
         return await quoteSwap(
