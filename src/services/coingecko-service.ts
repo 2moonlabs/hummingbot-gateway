@@ -39,7 +39,7 @@ const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
   uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
   uniswap_v3_optimism: { connector: 'uniswap', type: 'clmm' },
   uniswap_v3_polygon: { connector: 'uniswap', type: 'clmm' },
-  uniswap_v3_base: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v3-base': { connector: 'uniswap', type: 'clmm' },
   uniswap_v3_celo: { connector: 'uniswap', type: 'clmm' },
   uniswap_v3_avalanche: { connector: 'uniswap', type: 'clmm' },
   uniswap_v3_bsc: { connector: 'uniswap', type: 'clmm' },
