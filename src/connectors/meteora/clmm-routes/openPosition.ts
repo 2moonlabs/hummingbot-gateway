@@ -62,6 +62,10 @@ export async function openPosition(
     if (error instanceof Error && error.message.includes('Invalid account discriminator')) {
       throw fastify.httpErrors.notFound(POOL_NOT_FOUND_MESSAGE(poolAddress));
     }
+    // Handle InvalidPositionWidth error from Meteora SDK
+    if (error instanceof Error && error.message.includes('InvalidPositionWidth')) {
+      throw fastify.httpErrors.badRequest('Invalid position width. Please use a position width of 69 bins or lower.');
+    }
     throw error; // Re-throw unexpected errors
   }
 
