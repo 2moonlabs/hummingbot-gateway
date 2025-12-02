@@ -430,7 +430,6 @@ export class Ethereum {
       });
 
       logger.info(`✅ Infura API key configured (length: ${providerConfig.apiKey.length} chars)`);
-      logger.info(`Infura features enabled - WebSocket: ${providerConfig.useWebSocket}`);
 
       // Use Infura provider
       this.provider = this.infuraService.getProvider() as providers.StaticJsonRpcProvider;

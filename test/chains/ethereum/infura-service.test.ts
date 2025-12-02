@@ -113,24 +113,8 @@ describe('InfuraService', () => {
   });
 
   describe('getWebSocketUrl', () => {
-    it('should return WebSocket URL when enabled', () => {
-      const wsService = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: true },
-        { chain: 'ethereum', network: 'mainnet', chainId: 1 },
-      );
-
-      const wsUrl = wsService.getWebSocketUrl();
-
-      expect(wsUrl).toBe('wss://mainnet.infura.io/ws/v3/test-infura-key-123');
-    });
-
-    it('should return null when WebSocket is disabled', () => {
-      const service = new InfuraService(
-        { apiKey: 'test-infura-key-123', useWebSocket: false },
-        { chain: 'ethereum', network: 'mainnet', chainId: 1 },
-      );
-
-      const wsUrl = service.getWebSocketUrl();
+    it('should return null (WebSocket not used for Ethereum)', () => {
+      const wsUrl = infuraService.getWebSocketUrl();
 
       expect(wsUrl).toBeNull();
     });

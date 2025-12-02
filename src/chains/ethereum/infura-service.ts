@@ -10,17 +10,14 @@ import { RPCProvider, RPCProviderConfig, NetworkInfo } from '../../services/rpc-
  *
  * Features:
  * - Support for 30+ Ethereum networks and testnets
- * - HTTP provider always available, WebSocket connects on-demand
- * - Auto-disconnect WebSocket after idle timeout
+ * - HTTP provider for all RPC calls
  * - Automatic network endpoint mapping
  * - Health check capabilities
+ *
+ * Note: Ethereum uses polling via eth_getTransactionReceipt for transaction confirmation
  */
 export class InfuraService extends RPCProvider {
   private provider!: providers.JsonRpcProvider;
-  private wsProvider?: providers.WebSocketProvider;
-  private wsConnecting: Promise<providers.WebSocketProvider> | null = null;
-  private idleTimeout: NodeJS.Timeout | null = null;
-  private readonly idleTimeoutMs = 30000; // Disconnect after 30s of no activity
 
   constructor(config: RPCProviderConfig, networkInfo: NetworkInfo) {
     super(config, networkInfo);
@@ -41,18 +38,15 @@ export class InfuraService extends RPCProvider {
   }
 
   /**
-   * Get the Infura WebSocket RPC URL for the current network
-   * Returns null if WebSocket is not configured or API key is invalid
+   * Get the WebSocket URL - not used for Ethereum
+   * Ethereum uses polling via eth_getTransactionReceipt
    */
   public getWebSocketUrl(): string | null {
-    if (!this.shouldUseWebSocket()) return null;
-
-    const network = this.getInfuraNetworkName();
-    return `wss://${network}.infura.io/ws/v3/${this.config.apiKey}`;
+    return null;
   }
 
   /**
-   * Initialize HTTP provider (always available)
+   * Initialize HTTP provider
    */
   private initializeHttpProvider(): void {
     const httpUrl = this.getHttpUrl();
@@ -71,107 +65,7 @@ export class InfuraService extends RPCProvider {
    * Initialize the service
    */
   public async initialize(): Promise<void> {
-    // HTTP provider initialized in constructor
-    // WebSocket connects on-demand when getWebSocketProvider() is called
-    logger.info(`Infura service initialized for ${this.getNetworkName()} (WebSocket will connect on-demand)`);
-  }
-
-  /**
-   * Get or create WebSocket provider on-demand
-   * Returns null if WebSocket is not available
-   */
-  public async getWebSocketProvider(): Promise<providers.WebSocketProvider | null> {
-    if (!this.shouldUseWebSocket()) {
-      return null;
-    }
-
-    // Return existing connected provider
-    if (this.wsProvider && this.isWebSocketConnected()) {
-      this.resetIdleTimeout();
-      return this.wsProvider;
-    }
-
-    // If already connecting, wait for that attempt
-    if (this.wsConnecting) {
-      try {
-        return await this.wsConnecting;
-      } catch {
-        return null;
-      }
-    }
-
-    // Start new connection
-    this.wsConnecting = this.connectWebSocket();
-    try {
-      const provider = await this.wsConnecting;
-      this.resetIdleTimeout();
-      return provider;
-    } catch (error: any) {
-      logger.warn(`Failed to connect Infura WebSocket: ${error.message}`);
-      return null;
-    } finally {
-      this.wsConnecting = null;
-    }
-  }
-
-  /**
-   * Connect to Infura WebSocket endpoint
-   */
-  private async connectWebSocket(): Promise<providers.WebSocketProvider> {
-    const wsUrl = this.getWebSocketUrl();
-    if (!wsUrl) {
-      throw new Error('WebSocket URL not available');
-    }
-
-    logger.info(`Connecting to Infura WebSocket for ${this.getNetworkName()} on-demand`);
-
-    // Clean up existing provider if any
-    if (this.wsProvider) {
-      try {
-        this.wsProvider.destroy();
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
-
-    this.wsProvider = createRateLimitAwareEthereumProvider(new providers.WebSocketProvider(wsUrl), wsUrl);
-
-    // Wait for connection to be ready
-    await this.wsProvider.ready;
-    logger.info(`Infura WebSocket connected for ${this.getNetworkName()}`);
-
-    return this.wsProvider;
-  }
-
-  /**
-   * Reset idle timeout - call this when WebSocket is actively used
-   */
-  private resetIdleTimeout(): void {
-    this.cancelIdleTimeout();
-    this.idleTimeout = setTimeout(() => {
-      if (this.wsProvider) {
-        logger.info(`Closing idle Infura WebSocket for ${this.getNetworkName()}`);
-        this.wsProvider.destroy();
-        this.wsProvider = undefined;
-      }
-    }, this.idleTimeoutMs);
-  }
-
-  /**
-   * Cancel pending idle timeout
-   */
-  private cancelIdleTimeout(): void {
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-      this.idleTimeout = null;
-    }
-  }
-
-  /**
-   * Check if WebSocket is currently connected
-   */
-  public override isWebSocketConnected(): boolean {
-    return !!(this.wsProvider && this.wsProvider._websocket && this.wsProvider._websocket.readyState === 1);
+    logger.info(`Infura service initialized for ${this.getNetworkName()}`);
   }
 
   /**
@@ -264,8 +158,7 @@ export class InfuraService extends RPCProvider {
   }
 
   /**
-   * Get the HTTP provider (always available)
-   * For WebSocket, use getWebSocketProvider() instead
+   * Get the HTTP provider
    */
   public getProvider(): providers.JsonRpcProvider {
     return this.provider;
@@ -289,14 +182,6 @@ export class InfuraService extends RPCProvider {
    * Disconnect and clean up resources
    */
   public disconnect(): void {
-    this.cancelIdleTimeout();
-
-    if (this.wsProvider) {
-      this.wsProvider.destroy();
-      this.wsProvider = undefined;
-      logger.info(`Infura WebSocket disconnected for ${this.getNetworkName()}`);
-    }
-
     if (this.provider && 'destroy' in this.provider) {
       (this.provider as any).destroy();
     }
