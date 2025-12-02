@@ -17,7 +17,8 @@ onlyDirectRoutes: false
 # Default: true (for better price and stability)
 restrictIntermediateTokens: true
 
-# Jupiter API key (optional)
-# For free tier, leave empty (uses https://lite-api.jup.ag)
-# For paid plans, generate key at https://portal.jup.ag (uses https://api.jup.ag)
+# Jupiter API key (optional but recommended)
+# Without API key: uses lite-api.jup.ag (deprecated Dec 31, 2025)
+# With API key: uses api.jup.ag (free tier: 60 req/min)
+# Generate a free API key at https://portal.jup.ag
 apiKey: ''
