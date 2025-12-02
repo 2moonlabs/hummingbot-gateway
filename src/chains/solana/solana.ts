@@ -36,6 +36,7 @@ import { ConfigManagerCertPassphrase } from '../../services/config-manager-cert-
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
 import { logger, redactUrl } from '../../services/logger';
 import { createRateLimitAwareSolanaConnection } from '../../services/rpc-connection-interceptor';
+import { RPCProvider } from '../../services/rpc-provider-base';
 import { TokenService } from '../../services/token-service';
 import { getSafeWalletFilePath, isHardwareWallet as isHardwareWalletUtil } from '../../wallet/utils';
 
@@ -67,7 +68,7 @@ export class Solana {
   public tokenList: TokenInfo[] = [];
   public config: SolanaNetworkConfig;
   private _tokenMap: Record<string, TokenInfo> = {};
-  private heliusService?: HeliusService;
+  private rpcProviderService?: RPCProvider;
 
   private static _instances: { [name: string]: Solana };
 
@@ -120,17 +121,17 @@ export class Solana {
       }
 
       // Create HeliusService instance
-      this.heliusService = new HeliusService(providerConfig, {
+      this.rpcProviderService = new HeliusService(providerConfig, {
         chain: 'solana',
         network: this.network,
         chainId: this.config.chainID,
       });
 
       // Use Helius HTTP URL for connection
-      const rpcUrl = this.heliusService.getHttpUrl();
+      const rpcUrl = this.rpcProviderService.getHttpUrl();
       logger.info(`Initializing Solana connector for network: ${this.network}, RPC URL: ${redactUrl(rpcUrl)}`);
       logger.info(`✅ Helius API key configured (length: ${providerConfig.apiKey.length} chars)`);
-      logger.info(`Helius features enabled - WebSocket: ${providerConfig.useWebSocket}`);
+      logger.info(`Helius transaction monitoring: ${providerConfig.useWebSocket ? 'WebSocket' : 'REST polling'}`);
 
       this.connection = createRateLimitAwareSolanaConnection(
         new Connection(rpcUrl, {
@@ -168,9 +169,9 @@ export class Solana {
     try {
       await this.loadTokens();
 
-      // Initialize Helius WebSocket if using Helius provider
-      if (this.heliusService) {
-        await this.heliusService.initialize();
+      // Initialize RPC provider service if configured
+      if (this.rpcProviderService) {
+        await this.rpcProviderService.initialize();
       }
     } catch (e) {
       logger.error(`Failed to initialize ${this.network}: ${e}`);
@@ -313,10 +314,10 @@ export class Solana {
   }
 
   /**
-   * Get the HeliusService instance if initialized
+   * Get the RPC provider service if initialized
    */
-  public getHeliusService(): HeliusService | null {
-    return this.heliusService || null;
+  public getRpcProviderService(): RPCProvider | null {
+    return this.rpcProviderService || null;
   }
 
   /**
@@ -1159,10 +1160,10 @@ export class Solana {
     timeout: number = 3000,
   ): Promise<{ confirmed: boolean; txData?: any }> {
     try {
-      // Use Helius WebSocket monitoring if available for real-time confirmation
-      if (this.heliusService.isWebSocketConnected()) {
+      // Use RPC provider WebSocket monitoring if available for real-time confirmation
+      if (this.rpcProviderService?.supportsTransactionMonitoring()) {
         logger.info(`Using WebSocket monitoring for transaction ${signature}`);
-        return await this.heliusService.monitorTransaction(signature, timeout);
+        return await this.rpcProviderService.monitorTransaction(signature, timeout);
       }
 
       // Fallback to polling-based confirmation
@@ -1513,126 +1514,119 @@ export class Solana {
     return this._sendAndConfirmRawTransaction(serializedTx);
   }
 
-  // Create a private method to handle the actual sending with Helius best practices
+  /**
+   * Confirm transaction via WebSocket monitoring
+   */
+  private async _confirmViaWebSocket(signature: string): Promise<{ confirmed: boolean; txData: any } | null> {
+    if (!this.rpcProviderService?.supportsTransactionMonitoring()) {
+      return null;
+    }
+
+    try {
+      logger.info(`🚀 Sent transaction ${signature}, monitoring via WebSocket...`);
+      const confirmationResult = await this.rpcProviderService.monitorTransaction(signature, 60000);
+
+      if (confirmationResult.confirmed) {
+        logger.info(`✅ Transaction ${signature} confirmed via WebSocket`);
+        const txData = await this.connection.getTransaction(signature, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        return { confirmed: true, txData };
+      } else {
+        logger.warn(`❌ Transaction ${signature} not confirmed via WebSocket within timeout`);
+        return { confirmed: false, txData: null };
+      }
+    } catch (wsError: any) {
+      logger.warn(`WebSocket monitoring failed: ${wsError.message}, falling back to polling`);
+      return null;
+    }
+  }
+
+  /**
+   * Confirm transaction via REST polling
+   */
+  private async _confirmViaPolling(
+    signature: string,
+    lastValidBlockHeight: number,
+  ): Promise<{ confirmed: boolean; txData: any }> {
+    logger.info(`🚀 Sent transaction ${signature}, polling for confirmation...`);
+
+    let attempts = 0;
+
+    while (attempts < this.config.confirmRetryCount) {
+      attempts++;
+
+      try {
+        const statuses = await this.connection.getSignatureStatuses([signature]);
+        const status = statuses && statuses.value && statuses.value[0];
+
+        if (status) {
+          if (status.err) {
+            logger.error(`❌ Transaction ${signature} failed with error:`, status.err);
+            return { confirmed: false, txData: null };
+          }
+
+          if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
+            logger.info(`✅ Transaction ${signature} confirmed after ${attempts} attempts`);
+            const txData = await this.connection.getTransaction(signature, {
+              commitment: 'confirmed',
+              maxSupportedTransactionVersion: 0,
+            });
+            return { confirmed: true, txData };
+          }
+        }
+
+        // Check if blockhash has expired
+        const currentBlockHeight = await this.connection.getBlockHeight();
+        if (currentBlockHeight > lastValidBlockHeight) {
+          logger.warn(`Blockhash expired for transaction ${signature}, transaction may have failed`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, this.config.confirmRetryInterval * 1000));
+      } catch (pollingError: any) {
+        if (pollingError.statusCode === 429) {
+          logger.error(`Rate limit error while polling transaction ${signature}`);
+          throw pollingError;
+        }
+        logger.warn(`Polling attempt ${attempts} failed: ${pollingError.message}`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    logger.warn(`❌ Transaction ${signature} not confirmed after ${attempts} attempts`);
+    return { confirmed: false, txData: null };
+  }
+
+  /**
+   * Send and confirm a raw transaction
+   */
   private async _sendAndConfirmRawTransaction(
     serializedTx: Buffer | Uint8Array,
   ): Promise<{ confirmed: boolean; signature: string; txData: any }> {
-    // Get latest blockhash for expiration checking
     const { lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
 
     let signature: string | null = null;
 
     try {
-      // Use standard sendRawTransaction
       logger.info('Sending transaction via sendRawTransaction');
       signature = await this.connection.sendRawTransaction(serializedTx, {
         skipPreflight: true,
         maxRetries: 0,
       });
 
-      // Use WebSocket monitoring if available, otherwise fall back to robust polling
-      if (this.heliusService && this.heliusService.isWebSocketConnected()) {
-        logger.info(`🚀 Sent transaction ${signature}, monitoring via WebSocket...`);
-        const confirmationResult = await this.heliusService.monitorTransaction(signature, 60000);
-
-        if (confirmationResult.confirmed) {
-          logger.info(`✅ Transaction ${signature} confirmed via WebSocket`);
-
-          // Fetch full transaction data after confirmation
-          const txData = await this.connection.getTransaction(signature, {
-            commitment: 'confirmed',
-            maxSupportedTransactionVersion: 0,
-          });
-
-          return { confirmed: true, signature, txData };
-        } else {
-          logger.warn(`❌ Transaction ${signature} not confirmed via WebSocket within timeout`);
-          return { confirmed: false, signature, txData: null };
-        }
+      // Try WebSocket first, fall back to polling
+      const wsResult = await this._confirmViaWebSocket(signature);
+      if (wsResult !== null) {
+        return { ...wsResult, signature };
       }
 
-      logger.info(`🚀 Sent transaction ${signature}, implementing robust polling confirmation...`);
-
-      // Implement robust polling mechanism as per Helius best practices
-      const confirmed = false;
-      let attempts = 0;
-      const maxPollingAttempts = 30; // 30 attempts * 2s = 60s total timeout
-
-      while (!confirmed && attempts < maxPollingAttempts) {
-        attempts++;
-
-        try {
-          // Check signature status
-          const statuses = await this.connection.getSignatureStatuses([signature]);
-          const status = statuses && statuses.value && statuses.value[0];
-
-          if (status) {
-            if (status.err) {
-              logger.error(`❌ Transaction ${signature} failed with error:`, status.err);
-              return { confirmed: false, signature, txData: null };
-            }
-
-            if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
-              logger.info(`✅ Transaction ${signature} confirmed after ${attempts} attempts`);
-
-              // Get full transaction data
-              const txData = await this.connection.getTransaction(signature, {
-                commitment: 'confirmed',
-                maxSupportedTransactionVersion: 0,
-              });
-
-              return { confirmed: true, signature, txData };
-            }
-          }
-
-          // Check if blockhash has expired
-          const currentBlockHeight = await this.connection.getBlockHeight();
-          if (currentBlockHeight > lastValidBlockHeight) {
-            logger.warn(`Blockhash expired for transaction ${signature}, re-broadcasting...`);
-
-            // Re-broadcast the same transaction (don't re-sign with same blockhash)
-            try {
-              await this.connection.sendRawTransaction(serializedTx, {
-                skipPreflight: true,
-                maxRetries: 0,
-              });
-              logger.info(`Re-broadcasted transaction ${signature}`);
-            } catch (rebroadcastError: any) {
-              // Re-throw rate limit errors immediately
-              if (rebroadcastError.statusCode === 429) {
-                logger.error(`Rate limit error while re-broadcasting transaction ${signature}`);
-                throw rebroadcastError;
-              }
-
-              logger.warn(`Failed to re-broadcast: ${rebroadcastError.message}`);
-            }
-
-            // Continue polling with original signature
-          }
-
-          // Wait before next poll
-          await new Promise((resolve) => setTimeout(resolve, this.config.confirmRetryInterval * 1000));
-        } catch (pollingError: any) {
-          // Re-throw rate limit errors immediately
-          if (pollingError.statusCode === 429) {
-            logger.error(`Rate limit error while polling transaction ${signature}`);
-            throw pollingError;
-          }
-
-          logger.warn(`Polling attempt ${attempts} failed: ${pollingError.message}`);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      // If we exit the loop without confirmation
-      logger.warn(`❌ Transaction ${signature} not confirmed after ${attempts} attempts`);
-      return { confirmed: false, signature, txData: null };
+      const pollingResult = await this._confirmViaPolling(signature, lastValidBlockHeight);
+      return { ...pollingResult, signature };
     } catch (sendError: any) {
-      // Re-throw rate limit errors
       if (sendError.statusCode === 429) {
         throw sendError;
       }
-
       logger.error(`Failed to send transaction: ${sendError.message}`);
       return { confirmed: false, signature: signature || '', txData: null };
     }
@@ -2131,9 +2125,9 @@ export class Solana {
    * Clean up resources including WebSocket connections
    */
   public disconnect(): void {
-    if (this.heliusService) {
-      this.heliusService.disconnect();
-      logger.info('Helius services disconnected and cleaned up');
+    if (this.rpcProviderService) {
+      this.rpcProviderService.disconnect();
+      logger.info(`${this.rpcProviderService.getProviderName()} disconnected and cleaned up`);
     }
   }
 

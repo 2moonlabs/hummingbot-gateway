@@ -20,6 +20,14 @@ export interface NetworkInfo {
 }
 
 /**
+ * Result of transaction monitoring
+ */
+export interface TransactionMonitorResult {
+  confirmed: boolean;
+  txData?: any;
+}
+
+/**
  * Base abstract class for all RPC providers
  *
  * Provides common functionality for:
@@ -119,6 +127,26 @@ export abstract class RPCProvider {
   public async healthCheck(): Promise<boolean> {
     logger.warn(`${this.constructor.name}: healthCheck not implemented`);
     return true;
+  }
+
+  /**
+   * Check if transaction monitoring via WebSocket is supported
+   * Subclasses should override to return true if they support monitoring
+   */
+  public supportsTransactionMonitoring(): boolean {
+    return false;
+  }
+
+  /**
+   * Monitor a transaction for confirmation via WebSocket
+   * Connects on-demand if not already connected
+   * Subclasses should override to provide implementation
+   * @param signature Transaction signature to monitor
+   * @param timeoutMs Timeout in milliseconds
+   * @throws Error if monitoring is not supported or fails
+   */
+  public async monitorTransaction(_signature: string, _timeoutMs?: number): Promise<TransactionMonitorResult> {
+    throw new Error(`${this.constructor.name}: monitorTransaction not implemented`);
   }
 
   /**

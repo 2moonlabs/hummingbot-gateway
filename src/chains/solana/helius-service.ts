@@ -1,12 +1,12 @@
 import WebSocket from 'ws';
 
 import { logger } from '../../services/logger';
-import { RPCProvider, RPCProviderConfig, NetworkInfo } from '../../services/rpc-provider-base';
-
-interface TransactionMonitorResult {
-  confirmed: boolean;
-  txData?: any;
-}
+import {
+  RPCProvider,
+  RPCProviderConfig,
+  NetworkInfo,
+  TransactionMonitorResult,
+} from '../../services/rpc-provider-base';
 
 interface WebSocketSubscription {
   signature: string;
@@ -42,16 +42,16 @@ interface WebSocketMessage {
  * Extends RPCProvider base class with Solana-specific features
  *
  * Features:
- * - WebSocket transaction monitoring for faster confirmations
- * - Auto-reconnection with exponential backoff
+ * - WebSocket transaction monitoring for faster confirmations (connects on-demand)
+ * - Auto-disconnect after idle timeout
  * - Support for both mainnet-beta and devnet
  */
 export class HeliusService extends RPCProvider {
   private subscriptions = new Map<number, WebSocketSubscription>();
   private nextSubscriptionId = 1;
-  private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 5;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private idleTimeout: NodeJS.Timeout | null = null;
+  private readonly idleTimeoutMs = 30000; // Disconnect after 30s of no active subscriptions
+  private connecting: Promise<void> | null = null; // Prevent concurrent connection attempts
 
   constructor(config: RPCProviderConfig, networkInfo: NetworkInfo) {
     super(config, networkInfo);
@@ -79,25 +79,47 @@ export class HeliusService extends RPCProvider {
   }
 
   /**
-   * Initialize Helius services (WebSocket)
+   * Initialize Helius services
+   * Note: WebSocket connection is now on-demand, so this is a no-op
    */
   public async initialize(): Promise<void> {
-    // Initialize WebSocket if enabled
-    if (this.shouldUseWebSocket()) {
-      await this.initializeWebSocket();
-    }
+    // WebSocket connects on-demand when monitorTransaction is called
+    logger.info('Helius service initialized (WebSocket will connect on-demand)');
   }
 
   /**
-   * Initialize WebSocket connection for real-time transaction monitoring
+   * Ensure WebSocket is connected, connecting if necessary
+   * Returns true if connected, false if WebSocket is not available
    */
-  private async initializeWebSocket(): Promise<void> {
+  private async ensureWebSocketConnected(): Promise<boolean> {
+    if (!this.shouldUseWebSocket()) {
+      return false;
+    }
+
+    if (this.isWebSocketConnected()) {
+      return true;
+    }
+
+    // If already connecting, wait for that attempt
+    if (this.connecting) {
+      try {
+        await this.connecting;
+        return this.isWebSocketConnected();
+      } catch {
+        return false;
+      }
+    }
+
+    // Start new connection
+    this.connecting = this.connectWebSocket();
     try {
-      await this.connectWebSocket();
-      logger.info('✅ Helius WebSocket monitor successfully initialized');
+      await this.connecting;
+      return true;
     } catch (error: any) {
-      logger.warn(`❌ Failed to initialize Helius WebSocket: ${error.message}, falling back to polling`);
-      this.ws = null;
+      logger.warn(`Failed to connect Helius WebSocket: ${error.message}`);
+      return false;
+    } finally {
+      this.connecting = null;
     }
   }
 
@@ -111,15 +133,14 @@ export class HeliusService extends RPCProvider {
     }
 
     const isDevnet = this.networkInfo.network.includes('devnet');
-    logger.info(`Connecting to Helius WebSocket (${isDevnet ? 'devnet' : 'mainnet'}) endpoint`);
+    logger.info(`Connecting to Helius WebSocket (${isDevnet ? 'devnet' : 'mainnet'}) on-demand`);
 
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.on('open', () => {
-          logger.info('Connected to Helius WebSocket for transaction monitoring');
-          this.reconnectAttempts = 0;
+          logger.info('Helius WebSocket connected for transaction monitoring');
           resolve();
         });
 
@@ -138,8 +159,10 @@ export class HeliusService extends RPCProvider {
         });
 
         this.ws.on('close', (code, reason) => {
-          logger.warn(`WebSocket connection closed: code=${code}, reason=${reason?.toString()}`);
-          this.handleWebSocketDisconnection();
+          logger.info(`WebSocket closed: code=${code}, reason=${reason?.toString()}`);
+          this.ws = null;
+          // Reject pending subscriptions on unexpected close
+          this.handleWebSocketClose();
         });
       } catch (error) {
         reject(error);
@@ -160,18 +183,16 @@ export class HeliusService extends RPCProvider {
         clearTimeout(subscription.timeout);
         this.subscriptions.delete(subscriptionId);
 
-        // Unsubscribe from this signature
-        this.unsubscribeFromSignature(subscriptionId);
+        // Note: Server automatically unsubscribes after signatureNotification,
+        // so we don't need to call unsubscribeFromSignature here
 
         if (result && result.value && typeof result.value === 'object' && 'err' in result.value && result.value.err) {
-          logger.info(`Transaction ${subscription.signature} failed: ${JSON.stringify(result.value.err)}`);
           subscription.resolve({ confirmed: false, txData: result });
         } else {
-          logger.info(`Transaction ${subscription.signature} confirmed via WebSocket`);
           subscription.resolve({ confirmed: true, txData: result });
         }
       }
-    } else if (message.result && typeof message.id === 'number') {
+    } else if (message.result !== undefined && typeof message.id === 'number') {
       // Subscription confirmation - remap from local ID to server subscription ID
       const localId = message.id;
       const serverSubscriptionId = message.result;
@@ -185,6 +206,13 @@ export class HeliusService extends RPCProvider {
         logger.debug(`Remapped subscription from local ID ${localId} to server ID ${serverSubscriptionId}`);
       }
     } else if (message.error) {
+      // Ignore "Invalid subscription id" errors - these happen when trying to unsubscribe
+      // from a subscription that was already auto-removed by the server
+      if (message.error.code === -32602 && message.error.message?.includes('Invalid subscription')) {
+        logger.debug(`Ignoring expected unsubscribe error: ${message.error.message}`);
+        return;
+      }
+
       logger.error(`WebSocket subscription error: ${JSON.stringify(message.error)}`);
       const subscription = this.subscriptions.get(message.id!);
       if (subscription) {
@@ -196,31 +224,61 @@ export class HeliusService extends RPCProvider {
   }
 
   /**
-   * Monitor a transaction signature for confirmation via WebSocket
+   * Check if transaction monitoring via WebSocket is supported
    */
-  public async monitorTransaction(signature: string, timeoutMs: number = 30000): Promise<TransactionMonitorResult> {
-    if (!this.isWebSocketConnected()) {
-      throw new Error('WebSocket not connected');
+  public override supportsTransactionMonitoring(): boolean {
+    return this.shouldUseWebSocket();
+  }
+
+  /**
+   * Monitor a transaction signature for confirmation via WebSocket
+   * Connects on-demand if not already connected
+   */
+  public override async monitorTransaction(
+    signature: string,
+    timeoutMs: number = 30000,
+  ): Promise<TransactionMonitorResult> {
+    // Connect on-demand
+    const connected = await this.ensureWebSocketConnected();
+    if (!connected) {
+      throw new Error('WebSocket not available');
     }
+
+    // Cancel idle timeout since we have an active subscription
+    this.cancelIdleTimeout();
 
     return new Promise((resolve, reject) => {
       const subscriptionId = this.nextSubscriptionId++;
 
+      // Wrapper to handle cleanup and idle timeout
+      const resolveWithCleanup = (result: TransactionMonitorResult) => {
+        this.subscriptions.delete(subscriptionId);
+        this.scheduleIdleDisconnect();
+        resolve(result);
+      };
+
+      const rejectWithCleanup = (error: Error) => {
+        this.subscriptions.delete(subscriptionId);
+        this.scheduleIdleDisconnect();
+        reject(error);
+      };
+
       // Set up timeout
       const timeout = setTimeout(() => {
         this.subscriptions.delete(subscriptionId);
+        this.scheduleIdleDisconnect();
         resolve({ confirmed: false });
       }, timeoutMs);
 
       // Store subscription details
       this.subscriptions.set(subscriptionId, {
         signature,
-        resolve,
-        reject,
+        resolve: resolveWithCleanup,
+        reject: rejectWithCleanup,
         timeout,
       });
 
-      // Subscribe to signature logs
+      // Subscribe to signature
       const subscribeMessage = {
         jsonrpc: '2.0',
         id: subscriptionId,
@@ -234,8 +292,36 @@ export class HeliusService extends RPCProvider {
       };
 
       (this.ws as WebSocket).send(JSON.stringify(subscribeMessage));
-      logger.info(`Monitoring transaction ${signature} via WebSocket subscription ${subscriptionId}`);
+      logger.info(`Monitoring transaction ${signature} via WebSocket`);
     });
+  }
+
+  /**
+   * Schedule disconnection after idle timeout if no active subscriptions
+   */
+  private scheduleIdleDisconnect(): void {
+    if (this.subscriptions.size > 0) {
+      return; // Still have active subscriptions
+    }
+
+    this.cancelIdleTimeout();
+    this.idleTimeout = setTimeout(() => {
+      if (this.subscriptions.size === 0 && this.ws) {
+        logger.info('Closing idle Helius WebSocket connection');
+        (this.ws as WebSocket).close();
+        this.ws = null;
+      }
+    }, this.idleTimeoutMs);
+  }
+
+  /**
+   * Cancel pending idle timeout
+   */
+  private cancelIdleTimeout(): void {
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
   }
 
   /**
@@ -254,33 +340,17 @@ export class HeliusService extends RPCProvider {
   }
 
   /**
-   * Handle WebSocket disconnection and attempt reconnection
+   * Handle WebSocket close - reject pending subscriptions
+   * No automatic reconnection; will reconnect on next monitorTransaction call
    */
-  private handleWebSocketDisconnection(): void {
+  private handleWebSocketClose(): void {
     // Reject all pending subscriptions
-    for (const [subscriptionId, subscription] of this.subscriptions) {
+    for (const [_, subscription] of this.subscriptions) {
       clearTimeout(subscription.timeout);
       subscription.reject(new Error('WebSocket disconnected'));
     }
     this.subscriptions.clear();
-
-    // Attempt reconnection if within retry limits
-    if (this.shouldUseWebSocket() && this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-
-      logger.info(
-        `Attempting WebSocket reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms`,
-      );
-
-      this.reconnectTimeout = setTimeout(async () => {
-        try {
-          await this.connectWebSocket();
-        } catch (error: any) {
-          logger.error(`WebSocket reconnection failed: ${error.message}`);
-        }
-      }, backoffMs);
-    }
+    this.cancelIdleTimeout();
   }
 
   /**
@@ -294,11 +364,7 @@ export class HeliusService extends RPCProvider {
    * Disconnect and clean up all resources
    */
   public disconnect(): void {
-    // Clean up WebSocket
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
+    this.cancelIdleTimeout();
 
     // Clear all pending subscriptions
     for (const [_, subscription] of this.subscriptions) {
