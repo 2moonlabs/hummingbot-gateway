@@ -95,14 +95,12 @@ useWebSocket: false
       expect(isNaN(priorityFee)).toBe(false);
     });
 
-    it('should pass complete config to HeliusService', () => {
-      const heliusService = (solana as any).heliusService;
-      expect(heliusService).toBeDefined();
+    it('should pass complete config to RPC provider service', () => {
+      const rpcProviderService = (solana as any).rpcProviderService;
+      expect(rpcProviderService).toBeDefined();
 
-      // HeliusService now gets its config from conf/rpc/helius.yml
+      // RPC provider service now gets its config from conf/rpc/helius.yml
       // The config is no longer part of the chain config
-      // expect(heliusService.config.useHeliusRestRPC).toBe(solana.config.useHeliusRestRPC);
-      // expect(heliusService.config.heliusAPIKey).toBe(solana.config.heliusAPIKey);
     });
   });
 

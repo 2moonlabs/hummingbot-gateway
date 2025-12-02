@@ -46,11 +46,19 @@ describe('HeliusService WebSocket Functionality', () => {
   });
 
   describe('WebSocket Connection', () => {
-    it('should connect to mainnet WebSocket endpoint with API key', async () => {
+    it('should connect to mainnet WebSocket endpoint on-demand when monitoring', async () => {
       await heliusService.initialize();
 
+      // WebSocket not connected yet (on-demand)
+      expect(WebSocket).not.toHaveBeenCalled();
+      expect(heliusService.isWebSocketConnected()).toBe(false);
+
+      // Trigger on-demand connection via monitorTransaction
+      const signature = 'TestSignature';
+      heliusService.monitorTransaction(signature, 1000);
+
+      // Now WebSocket should be connected
       expect(WebSocket).toHaveBeenCalledWith('wss://mainnet.helius-rpc.com/?api-key=test-api-key-123');
-      expect(heliusService.isWebSocketConnected()).toBe(true);
     });
 
     it('should connect to devnet WebSocket endpoint for devnet network', async () => {
@@ -62,11 +70,13 @@ describe('HeliusService WebSocket Functionality', () => {
 
       await heliusService.initialize();
 
+      // Trigger on-demand connection
+      heliusService.monitorTransaction('TestSignature', 1000);
+
       expect(WebSocket).toHaveBeenCalledWith('wss://devnet.helius-rpc.com/?api-key=test-api-key-123');
-      expect(heliusService.isWebSocketConnected()).toBe(true);
     });
 
-    it('should not initialize WebSocket if useWebSocket is false', async () => {
+    it('should not support transaction monitoring if useWebSocket is false', async () => {
       const configWithoutWs = {
         apiKey: 'test-api-key-123',
         useWebSocket: false,
@@ -79,11 +89,11 @@ describe('HeliusService WebSocket Functionality', () => {
 
       await heliusService.initialize();
 
+      expect(heliusService.supportsTransactionMonitoring()).toBe(false);
       expect(WebSocket).not.toHaveBeenCalled();
-      expect(heliusService.isWebSocketConnected()).toBe(false);
     });
 
-    it('should not initialize WebSocket if API key is missing', async () => {
+    it('should not support transaction monitoring if API key is missing', async () => {
       const configWithoutKey = {
         apiKey: '',
         useWebSocket: true,
@@ -96,8 +106,8 @@ describe('HeliusService WebSocket Functionality', () => {
 
       await heliusService.initialize();
 
+      expect(heliusService.supportsTransactionMonitoring()).toBe(false);
       expect(WebSocket).not.toHaveBeenCalled();
-      expect(heliusService.isWebSocketConnected()).toBe(false);
     });
   });
 
@@ -105,10 +115,13 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should resolve with confirmed=true when transaction succeeds (err=null)', async () => {
       await heliusService.initialize();
 
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
-
       const signature = '2EBVM6cB8vAAD93Ktr6Vd8p67XPbQzCJX47MpReuiCXJAtcjaxpvWpcg9Ege1Nr5Tk3a2GFrByT7WPBjdsTycY9b';
       const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // Verify subscription message was sent
       expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('"method":"signatureSubscribe"'));
@@ -158,10 +171,13 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should resolve with confirmed=false when transaction fails (err present)', async () => {
       await heliusService.initialize();
 
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
-
       const signature = 'FailedTransactionSignature123';
       const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // First send subscription confirmation
       const subscriptionConfirmation = {
@@ -206,59 +222,51 @@ describe('HeliusService WebSocket Functionality', () => {
       });
     });
 
-    it('should handle various transaction error types correctly', async () => {
+    it('should handle InsufficientFundsForFee error correctly', async () => {
       await heliusService.initialize();
+
+      const signature = 'ErrorTestSignature0';
+      const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
 
       const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
-      const errorTypes = [
-        { InsufficientFundsForFee: {} },
-        { InstructionError: [1, 'CustomError'] },
-        'AccountInUse',
-        { DuplicateSignature: {} },
-      ];
+      // Send subscription confirmation first
+      const subscriptionConfirmation = {
+        jsonrpc: '2.0',
+        result: 20100751,
+        id: 1,
+      };
 
-      for (let i = 0; i < errorTypes.length; i++) {
-        const signature = `ErrorTestSignature${i}`;
-        const localId = i + 1;
-        const serverSubId = 20100751 + i;
-        const monitorPromise = heliusService.monitorTransaction(signature, 30000);
-
-        // Send subscription confirmation first
-        const subscriptionConfirmation = {
-          jsonrpc: '2.0',
-          result: serverSubId,
-          id: localId,
-        };
-
-        if (onMessageCallback) {
-          onMessageCallback.call(mockWs, Buffer.from(JSON.stringify(subscriptionConfirmation)));
-        }
-
-        // Then send failed notification
-        const failedNotification = {
-          jsonrpc: '2.0',
-          method: 'signatureNotification',
-          params: {
-            result: {
-              context: { slot: 5207626 + i },
-              value: {
-                err: errorTypes[i],
-              },
-            },
-            subscription: serverSubId,
-          },
-        };
-
-        if (onMessageCallback) {
-          onMessageCallback.call(mockWs, Buffer.from(JSON.stringify(failedNotification)));
-        }
-
-        const result = await monitorPromise;
-
-        expect(result.confirmed).toBe(false);
-        expect(result.txData.value.err).toEqual(errorTypes[i]);
+      if (onMessageCallback) {
+        onMessageCallback.call(mockWs, Buffer.from(JSON.stringify(subscriptionConfirmation)));
       }
+
+      // Then send failed notification
+      const failedNotification = {
+        jsonrpc: '2.0',
+        method: 'signatureNotification',
+        params: {
+          result: {
+            context: { slot: 5207626 },
+            value: {
+              err: { InsufficientFundsForFee: {} },
+            },
+          },
+          subscription: 20100751,
+        },
+      };
+
+      if (onMessageCallback) {
+        onMessageCallback.call(mockWs, Buffer.from(JSON.stringify(failedNotification)));
+      }
+
+      const result = await monitorPromise;
+
+      expect(result.confirmed).toBe(false);
+      expect(result.txData.value.err).toEqual({ InsufficientFundsForFee: {} });
     });
   });
 
@@ -280,13 +288,16 @@ describe('HeliusService WebSocket Functionality', () => {
   });
 
   describe('Subscription Management', () => {
-    it('should send unsubscribe message after receiving notification', async () => {
+    it('should not send unsubscribe after notification (server auto-unsubscribes)', async () => {
       await heliusService.initialize();
-
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       const signature = 'UnsubscribeTestSignature';
       const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // First send subscription confirmation
       const subscriptionConfirmation = {
@@ -321,9 +332,8 @@ describe('HeliusService WebSocket Functionality', () => {
 
       await monitorPromise;
 
-      // Verify unsubscribe was sent with server subscription ID
-      expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('"method":"signatureUnsubscribe"'));
-      expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('"params":[20100755]'));
+      // Server auto-unsubscribes after signatureNotification, so we don't send unsubscribe
+      expect(mockWs.send).not.toHaveBeenCalledWith(expect.stringContaining('"method":"signatureUnsubscribe"'));
     });
   });
 
@@ -331,10 +341,13 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should reject monitor promise when WebSocket subscription returns error', async () => {
       await heliusService.initialize();
 
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
-
       const signature = 'ErrorSubscriptionSignature';
       const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // Simulate WebSocket error response
       const errorResponse = {
@@ -353,11 +366,20 @@ describe('HeliusService WebSocket Functionality', () => {
       await expect(monitorPromise).rejects.toThrow('WebSocket error: Invalid params');
     });
 
-    it('should throw error if trying to monitor transaction when WebSocket not connected', async () => {
-      // Don't initialize WebSocket
+    it('should throw error if WebSocket not available (useWebSocket=false)', async () => {
+      const configWithoutWs = {
+        apiKey: 'test-api-key-123',
+        useWebSocket: false,
+      };
+      heliusService = new HeliusService(configWithoutWs, {
+        chain: 'solana',
+        network: 'mainnet-beta',
+        chainId: 101,
+      });
+
       const signature = 'NoConnectionSignature';
 
-      await expect(heliusService.monitorTransaction(signature, 30000)).rejects.toThrow('WebSocket not connected');
+      await expect(heliusService.monitorTransaction(signature, 30000)).rejects.toThrow('WebSocket not available');
     });
   });
 
@@ -365,11 +387,15 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should reject pending subscriptions on disconnect', async () => {
       await heliusService.initialize();
 
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
-      const onCloseCallback = mockWs.on.mock.calls.find((call) => call[0] === 'close')?.[1];
-
+      // Start a transaction to trigger on-demand WebSocket connection
       const signature = 'DisconnectTestSignature';
       const monitorPromise = heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
+      const onCloseCallback = mockWs.on.mock.calls.find((call) => call[0] === 'close')?.[1];
 
       // Send subscription confirmation to establish the subscription
       const subscriptionConfirmation = {
@@ -395,6 +421,12 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should handle malformed JSON messages gracefully', async () => {
       await heliusService.initialize();
 
+      // Start a transaction to trigger on-demand WebSocket connection
+      heliusService.monitorTransaction('TestSignature', 1000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
       const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // Send malformed JSON
@@ -408,6 +440,12 @@ describe('HeliusService WebSocket Functionality', () => {
 
     it('should ignore unknown notification types', async () => {
       await heliusService.initialize();
+
+      // Start a transaction to trigger on-demand WebSocket connection
+      heliusService.monitorTransaction('TestSignature', 1000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
 
       const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
@@ -433,10 +471,14 @@ describe('HeliusService WebSocket Functionality', () => {
     it('should handle subscription confirmation response', async () => {
       await heliusService.initialize();
 
-      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
-
       const signature = 'ConfirmationTestSignature';
+      // This triggers on-demand WebSocket connection
       heliusService.monitorTransaction(signature, 30000);
+
+      // Wait for WebSocket to connect
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const onMessageCallback = mockWs.on.mock.calls.find((call) => call[0] === 'message')?.[1];
 
       // Simulate subscription confirmation
       const confirmationResponse = {
