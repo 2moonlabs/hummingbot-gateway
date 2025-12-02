@@ -4,6 +4,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { addLiquidity as meteoraAddLiquidity } from '../../connectors/meteora/clmm-routes/addLiquidity';
+import { addLiquidity as orcaAddLiquidity } from '../../connectors/orca/clmm-routes/addLiquidity';
 import { addLiquidity as pancakeswapAddLiquidity } from '../../connectors/pancakeswap/clmm-routes/addLiquidity';
 import { addLiquidity as pancakeswapSolAddLiquidity } from '../../connectors/pancakeswap-sol/clmm-routes/addLiquidity';
 import { addLiquidity as raydiumAddLiquidity } from '../../connectors/raydium/clmm-routes/addLiquidity';
@@ -46,7 +47,7 @@ function parseChainNetwork(chainNetwork: string): { chain: string; network: stri
 // Unified schema with connector field
 const UnifiedAddLiquidityRequest = Type.Object({
   connector: Type.String({
-    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol)',
+    description: 'Connector name (uniswap, pancakeswap, raydium, meteora, pancakeswap-sol, orca)',
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -163,6 +164,17 @@ export const addLiquidityRoute: FastifyPluginAsync = async (fastify) => {
 
           case 'pancakeswap-sol':
             return await pancakeswapSolAddLiquidity(
+              fastify,
+              network,
+              walletAddress,
+              positionAddress,
+              baseTokenAmount,
+              quoteTokenAmount,
+              slippagePct,
+            );
+
+          case 'orca':
+            return await orcaAddLiquidity(
               fastify,
               network,
               walletAddress,

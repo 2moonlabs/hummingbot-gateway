@@ -4,6 +4,7 @@ import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import { getEthereumChainConfig } from '../../chains/ethereum/ethereum.config';
 import { getSolanaChainConfig } from '../../chains/solana/solana.config';
 import { getPositionsOwned as meteoraGetPositionsOwned } from '../../connectors/meteora/clmm-routes/positionsOwned';
+import { getPositionsOwned as orcaGetPositionsOwned } from '../../connectors/orca/clmm-routes/positionsOwned';
 import { getPositionsOwned as pancakeswapGetPositionsOwned } from '../../connectors/pancakeswap/clmm-routes/positionsOwned';
 import { getPositionsOwned as pancakeswapSolGetPositionsOwned } from '../../connectors/pancakeswap-sol/clmm-routes/positionsOwned';
 import { getPositionsOwned as raydiumGetPositionsOwned } from '../../connectors/raydium/clmm-routes/positionsOwned';
@@ -26,8 +27,8 @@ try {
  */
 const UnifiedPositionsOwnedRequestSchema = Type.Object({
   connector: Type.String({
-    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap)',
-    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap'],
+    description: 'CLMM connector (raydium, meteora, pancakeswap-sol, uniswap, pancakeswap, orca)',
+    enum: ['raydium', 'meteora', 'pancakeswap-sol', 'uniswap', 'pancakeswap', 'orca'],
     default: 'meteora',
     examples: ['meteora'],
   }),
@@ -82,6 +83,8 @@ async function getSolanaPositionsOwned(
       return await meteoraGetPositionsOwned(fastify, network, walletAddress);
     case 'pancakeswap-sol':
       return await pancakeswapSolGetPositionsOwned(fastify, network, walletAddress);
+    case 'orca':
+      return await orcaGetPositionsOwned(fastify, network, walletAddress);
     default:
       throw fastify.httpErrors.badRequest(`Unsupported Solana CLMM connector: ${connector}`);
   }

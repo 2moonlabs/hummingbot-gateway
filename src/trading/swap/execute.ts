@@ -7,6 +7,7 @@ import { getSolanaChainConfig, getSolanaNetworkConfig } from '../../chains/solan
 import { executeSwap as zeroXRouterExecuteSwap } from '../../connectors/0x/router-routes/executeSwap';
 import { executeSwap as jupiterRouterExecuteSwap } from '../../connectors/jupiter/router-routes/executeSwap';
 import { executeSwap as meteoraClmmExecuteSwap } from '../../connectors/meteora/clmm-routes/executeSwap';
+import { executeSwap as orcaClmmExecuteSwap } from '../../connectors/orca/clmm-routes/executeSwap';
 import { executeSwap as pancakeswapAmmExecuteSwap } from '../../connectors/pancakeswap/amm-routes/executeSwap';
 import { executeSwap as pancakeswapClmmExecuteSwap } from '../../connectors/pancakeswap/clmm-routes/executeSwap';
 import { executeSwap as pancakeswapRouterExecuteSwap } from '../../connectors/pancakeswap/router-routes/executeSwap';
@@ -209,6 +210,18 @@ async function executeSolanaSwap(
         amount,
         side,
         poolAddress,
+        slippagePct,
+      );
+    } else if (providerKey === 'orca/clmm') {
+      return await orcaClmmExecuteSwap(
+        fastify,
+        network,
+        walletAddress,
+        baseToken,
+        quoteToken,
+        amount,
+        side,
+        poolAddress!,
         slippagePct,
       );
     }

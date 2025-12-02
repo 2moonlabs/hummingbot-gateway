@@ -7,6 +7,7 @@ import { getSolanaNetworkConfig } from '../../chains/solana/solana.config';
 import { quoteSwap as zeroXRouterQuoteSwap } from '../../connectors/0x/router-routes/quoteSwap';
 import { quoteSwap as jupiterRouterQuoteSwap } from '../../connectors/jupiter/router-routes/quoteSwap';
 import { quoteSwap as meteoraClmmQuoteSwap } from '../../connectors/meteora/clmm-routes/quoteSwap';
+import { quoteSwap as orcaClmmQuoteSwap } from '../../connectors/orca/clmm-routes/quoteSwap';
 import { quoteSwap as pancakeswapAmmQuoteSwap } from '../../connectors/pancakeswap/amm-routes/quoteSwap';
 import { quoteSwap as pancakeswapClmmQuoteSwap } from '../../connectors/pancakeswap/clmm-routes/quoteSwap';
 import { quoteSwap as pancakeswapRouterQuoteSwap } from '../../connectors/pancakeswap/router-routes/quoteSwap';
@@ -191,6 +192,8 @@ async function getSolanaQuoteSwap(
         poolAddress,
         slippagePct,
       );
+    } else if (providerKey === 'orca/clmm') {
+      return await orcaClmmQuoteSwap(fastify, network, baseToken, quoteToken, amount, side, poolAddress!, slippagePct);
     }
 
     throw fastify.httpErrors.badRequest(`Unsupported swap provider: ${swapProvider}`);
