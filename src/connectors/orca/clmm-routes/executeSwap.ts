@@ -152,6 +152,7 @@ export async function executeSwap(
       mintA.tokenProgram,
       'wrap',
       quote.estimatedAmountIn, // handleWsolAta will check existing balance and only wrap deficit
+      solana,
     );
     // Create ATA for output token if needed
     await handleWsolAta(
@@ -181,6 +182,7 @@ export async function executeSwap(
       mintB.tokenProgram,
       'wrap',
       quote.estimatedAmountIn, // handleWsolAta will check existing balance and only wrap deficit
+      solana,
     );
   }
 
