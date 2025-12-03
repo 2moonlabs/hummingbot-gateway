@@ -48,33 +48,13 @@ function createRateLimitErrorMessage(rpcUrl: string, chainType: 'solana' | 'ethe
   if (chainType === 'solana') {
     return (
       `Solana RPC rate limit exceeded. Your current RPC endpoint (${redactedUrl}) has reached its rate limit. ` +
-      `Please configure a different RPC endpoint with higher rate limits, or use a managed provider like Helius. ` +
-      `To fix: Update 'nodeURL' in conf/chains/solana/${rpcUrl.includes('devnet') ? 'devnet' : 'mainnet-beta'}.yml ` +
-      `or configure Helius in conf/rpc/helius.yml`
+      `To fix: Add an RPC provider API key to conf/apiKeys.yml and set 'rpcProvider' in conf/chains/solana.yml`
     );
   } else {
     // Ethereum
-    const network = rpcUrl.includes('sepolia')
-      ? 'sepolia'
-      : rpcUrl.includes('polygon')
-        ? 'polygon'
-        : rpcUrl.includes('arbitrum')
-          ? 'arbitrum'
-          : rpcUrl.includes('optimism')
-            ? 'optimism'
-            : rpcUrl.includes('base')
-              ? 'base'
-              : rpcUrl.includes('avalanche')
-                ? 'avalanche'
-                : rpcUrl.includes('bsc') || rpcUrl.includes('binance')
-                  ? 'bsc'
-                  : 'mainnet';
-
     return (
       `Ethereum RPC rate limit exceeded. Your current RPC endpoint (${redactedUrl}) has reached its rate limit. ` +
-      `Please configure a different RPC endpoint with higher rate limits, or use a managed provider like Infura. ` +
-      `To fix: Update 'nodeURL' in conf/chains/ethereum/${network}.yml ` +
-      `or configure Infura in conf/rpc/infura.yml`
+      `To fix: Add an RPC provider API key to conf/apiKeys.yml and set 'rpcProvider' in conf/chains/ethereum.yml`
     );
   }
 }

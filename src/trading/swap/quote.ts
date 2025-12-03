@@ -250,7 +250,16 @@ async function getEthereumQuoteSwap(
     const providerKey = swapProvider;
 
     if (providerKey === 'uniswap/router') {
-      return await uniswapRouterQuoteSwap(fastify, network, '', baseToken, quoteToken, amount, side, slippagePct || 1);
+      return await uniswapRouterQuoteSwap(
+        fastify,
+        network,
+        undefined,
+        baseToken,
+        quoteToken,
+        amount,
+        side,
+        slippagePct || 1,
+      );
     } else if (providerKey === 'uniswap/amm') {
       return await uniswapAmmQuoteSwap(
         fastify,
@@ -274,7 +283,16 @@ async function getEthereumQuoteSwap(
         slippagePct,
       );
     } else if (providerKey === 'pancakeswap/router') {
-      return await pancakeswapRouterQuoteSwap(fastify, network, '', baseToken, quoteToken, amount, side, slippagePct);
+      return await pancakeswapRouterQuoteSwap(
+        fastify,
+        network,
+        undefined,
+        baseToken,
+        quoteToken,
+        amount,
+        side,
+        slippagePct,
+      );
     } else if (providerKey === 'pancakeswap/amm') {
       return await pancakeswapAmmQuoteSwap(
         fastify,

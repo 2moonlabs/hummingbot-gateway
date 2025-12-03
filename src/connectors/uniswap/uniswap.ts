@@ -190,7 +190,7 @@ export class Uniswap {
     outputToken: Token,
     amount: number,
     side: 'BUY' | 'SELL',
-    walletAddress: string,
+    walletAddress?: string,
   ): Promise<any> {
     // Determine input/output based on side
     const exactIn = side === 'SELL';
@@ -208,6 +208,8 @@ export class Uniswap {
     const slippageTolerance = new Percent(Math.floor(this.config.slippagePct * 100), 10000);
 
     // Get quote from Universal Router
+    // Use a placeholder address for quotes when no wallet is provided
+    const recipient = walletAddress || '0x0000000000000000000000000000000000000001';
     const quoteResult = await this.universalRouter.getQuote(
       inputToken,
       outputToken,
@@ -216,7 +218,7 @@ export class Uniswap {
       {
         slippageTolerance,
         deadline: Math.floor(Date.now() / 1000 + 1800), // 30 minutes
-        recipient: walletAddress,
+        recipient,
         protocols: protocolsToUse,
       },
     );
