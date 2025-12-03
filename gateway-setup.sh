@@ -129,8 +129,8 @@ ask_config_choices () {
     UPDATE_POOLS="N"
   fi
 
-  # Ask about apiKeys.yml (default to No to avoid overwriting user's keys)
-  if prompt_yes_no "  - apiKeys.yml (API keys for Helius, Infura, Jupiter, etc.)?" "N"; then
+  # Ask about apiKeys.yml (default to Yes for first-time setup)
+  if prompt_yes_no "  - apiKeys.yml (API keys for Helius, Infura, etc.)?" "Y"; then
     UPDATE_APIKEYS="Y"
     PLANNED_UPDATES="${PLANNED_UPDATES}apiKeys.yml, "
   else
@@ -167,9 +167,37 @@ copy_configs () {
     UPDATED_ITEMS="${UPDATED_ITEMS}server.yml, "
   fi
   
-  # Copy connectors folder if selected
+  # Copy connectors folder if selected, preserving existing apiKey values
   if [ "$UPDATE_CONNECTORS" = "Y" ]; then
+    # Store existing apiKey values from connector files to temp file
+    CONNECTOR_KEYS_TMP=$(mktemp)
+    if [ -d "$HOST_CONF_PATH/connectors" ]; then
+      for connector_file in "$HOST_CONF_PATH/connectors"/*.yml; do
+        if [ -f "$connector_file" ]; then
+          connector_name=$(basename "$connector_file")
+          # Extract apiKey value if it exists and is not empty
+          api_key=$(grep "^apiKey:" "$connector_file" 2>/dev/null | cut -d"'" -f2)
+          if [ -n "$api_key" ]; then
+            echo "$connector_name|$api_key" >> "$CONNECTOR_KEYS_TMP"
+          fi
+        fi
+      done
+    fi
+
     cp -r $TEMPLATE_DIR/connectors $HOST_CONF_PATH/
+
+    # Restore non-empty apiKey values
+    if [ -f "$CONNECTOR_KEYS_TMP" ]; then
+      while IFS='|' read -r connector_name value; do
+        connector_file="$HOST_CONF_PATH/connectors/$connector_name"
+        if [ -f "$connector_file" ]; then
+          perl -pi -e "s|^apiKey: ''|apiKey: '${value}'|" "$connector_file"
+          echo "   Kept existing apiKey in $connector_name"
+        fi
+      done < "$CONNECTOR_KEYS_TMP"
+      rm -f "$CONNECTOR_KEYS_TMP"
+    fi
+
     UPDATED_ITEMS="${UPDATED_ITEMS}connectors/, "
   fi
   
@@ -221,9 +249,32 @@ copy_configs () {
     UPDATED_ITEMS="${UPDATED_ITEMS}pools/, "
   fi
 
-  # Copy apiKeys.yml if selected
+  # Copy apiKeys.yml if selected, preserving existing non-empty values
   if [ "$UPDATE_APIKEYS" = "Y" ]; then
+    # Store existing non-empty API key values to temp file
+    API_KEYS_TMP=$(mktemp)
+    if [ -f "$HOST_CONF_PATH/apiKeys.yml" ]; then
+      # Extract lines like "keyname: 'value'" where value is not empty
+      grep "^[a-zA-Z0-9_]*: '[^']" "$HOST_CONF_PATH/apiKeys.yml" | while IFS= read -r line; do
+        key=$(echo "$line" | cut -d':' -f1)
+        value=$(echo "$line" | cut -d"'" -f2)
+        if [ -n "$value" ]; then
+          echo "$key|$value" >> "$API_KEYS_TMP"
+        fi
+      done
+    fi
+
     cp $TEMPLATE_DIR/apiKeys.yml $HOST_CONF_PATH/
+
+    # Restore non-empty API key values
+    if [ -s "$API_KEYS_TMP" ]; then
+      while IFS='|' read -r key value; do
+        perl -pi -e "s|^${key}: ''|${key}: '${value}'|" "$HOST_CONF_PATH/apiKeys.yml"
+        echo "   Kept existing $key API key"
+      done < "$API_KEYS_TMP"
+    fi
+    rm -f "$API_KEYS_TMP"
+
     UPDATED_ITEMS="${UPDATED_ITEMS}apiKeys.yml, "
   fi
   
@@ -349,7 +400,7 @@ if [ "$UPDATE_POOLS" = "Y" ]; then
   echo "   - pools/ (default pool lists for each DEX connector)"
 fi
 if [ "$UPDATE_APIKEYS" = "Y" ]; then
-  echo "   - apiKeys.yml (API keys for Helius, Infura, Jupiter, etc.)"
+  echo "   - apiKeys.yml (API keys for Helius, Infura, etc.)"
 fi
 echo "   - root.yml (always updated - essential file)"
 echo "   - namespaces/ (always updated - config schemas)"
