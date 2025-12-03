@@ -341,6 +341,7 @@ export async function openPosition(
       mintA.tokenProgram,
       'wrap',
       tokenMaxAWithBuffer,
+      solana,
     );
     await handleWsolAta(
       builder,
@@ -350,6 +351,7 @@ export async function openPosition(
       mintB.tokenProgram,
       'wrap',
       tokenMaxBWithBuffer,
+      solana,
     );
 
     logger.info('WSOL pre-wrapping completed');
