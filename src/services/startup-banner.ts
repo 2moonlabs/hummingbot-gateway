@@ -1,9 +1,9 @@
 import { Ethereum } from '../chains/ethereum/ethereum';
 import { getEthereumNetworkConfig } from '../chains/ethereum/ethereum.config';
-import { InfuraService } from '../chains/ethereum/infura-service';
-import { HeliusService } from '../chains/solana/helius-service';
 import { Solana } from '../chains/solana/solana';
 import { getSolanaNetworkConfig } from '../chains/solana/solana.config';
+import { HeliusService } from '../rpc/helius-service';
+import { InfuraService } from '../rpc/infura-service';
 
 import { ConfigManagerV2 } from './config-manager-v2';
 import { logger, redactUrl } from './logger';

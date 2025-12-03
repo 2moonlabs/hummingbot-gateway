@@ -32,15 +32,15 @@ import fse from 'fs-extra';
 // TODO: Replace with Fastify httpErrors
 const SIMULATION_ERROR_MESSAGE = 'Transaction simulation failed: ';
 
+import { HeliusService } from '../../rpc/helius-service';
+import { createRateLimitAwareSolanaConnection } from '../../rpc/rpc-connection-interceptor';
+import { RPCProvider } from '../../rpc/rpc-provider-base';
 import { ConfigManagerCertPassphrase } from '../../services/config-manager-cert-passphrase';
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
 import { logger, redactUrl } from '../../services/logger';
-import { createRateLimitAwareSolanaConnection } from '../../services/rpc-connection-interceptor';
-import { RPCProvider } from '../../services/rpc-provider-base';
 import { TokenService } from '../../services/token-service';
 import { getSafeWalletFilePath, isHardwareWallet as isHardwareWalletUtil } from '../../wallet/utils';
 
-import { HeliusService } from './helius-service';
 import { SolanaPriorityFees } from './solana-priority-fees';
 import { SolanaNetworkConfig, getSolanaNetworkConfig, getSolanaChainConfig } from './solana.config';
 

@@ -1,12 +1,8 @@
 import WebSocket from 'ws';
 
-import { logger } from '../../services/logger';
-import {
-  RPCProvider,
-  RPCProviderConfig,
-  NetworkInfo,
-  TransactionMonitorResult,
-} from '../../services/rpc-provider-base';
+import { logger } from '../services/logger';
+
+import { RPCProvider, RPCProviderConfig, NetworkInfo, TransactionMonitorResult } from './rpc-provider-base';
 
 interface WebSocketSubscription {
   signature: string;

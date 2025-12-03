@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 
-import { createRateLimitAwareSolanaConnection } from '../../../src/services/rpc-connection-interceptor';
+import { createRateLimitAwareSolanaConnection } from '../../../src/rpc/rpc-connection-interceptor';
 
 describe('Solana Rate Limit Interceptor', () => {
   let mockConnection: jest.Mocked<Connection>;

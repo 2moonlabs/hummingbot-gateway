@@ -3,17 +3,17 @@ import { BigNumber, Contract, ContractTransaction, providers, utils, Wallet, eth
 import { getAddress } from 'ethers/lib/utils';
 import fse from 'fs-extra';
 
+import { InfuraService } from '../../rpc/infura-service';
+import { createRateLimitAwareEthereumProvider } from '../../rpc/rpc-connection-interceptor';
 import { TokenValue, tokenValueToString } from '../../services/base';
 import { ConfigManagerCertPassphrase } from '../../services/config-manager-cert-passphrase';
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
 import { logger, redactUrl } from '../../services/logger';
-import { createRateLimitAwareEthereumProvider } from '../../services/rpc-connection-interceptor';
 import { TokenService } from '../../services/token-service';
 import { walletPath, isHardwareWallet as checkIsHardwareWallet } from '../../wallet/utils';
 
 import { getEthereumNetworkConfig, getEthereumChainConfig } from './ethereum.config';
 import { EtherscanService } from './etherscan-service';
-import { InfuraService } from './infura-service';
 
 // information about an Ethereum token
 export interface TokenInfo {

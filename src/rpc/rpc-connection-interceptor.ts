@@ -6,7 +6,7 @@
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 
-import { logger } from './logger';
+import { logger } from '../services/logger';
 
 /**
  * Redact sensitive parts of RPC URL (API keys, tokens)

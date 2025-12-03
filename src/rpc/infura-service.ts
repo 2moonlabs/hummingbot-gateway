@@ -1,8 +1,9 @@
 import { providers } from 'ethers';
 
-import { logger } from '../../services/logger';
-import { createRateLimitAwareEthereumProvider } from '../../services/rpc-connection-interceptor';
-import { RPCProvider, RPCProviderConfig, NetworkInfo } from '../../services/rpc-provider-base';
+import { logger } from '../services/logger';
+
+import { createRateLimitAwareEthereumProvider } from './rpc-connection-interceptor';
+import { RPCProvider, RPCProviderConfig, NetworkInfo } from './rpc-provider-base';
 
 /**
  * Infura Service - Optimized RPC provider for Ethereum/EVM networks

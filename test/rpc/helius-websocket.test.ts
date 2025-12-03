@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 
-import { HeliusService } from '../../../src/chains/solana/helius-service';
-import { RPCProviderConfig } from '../../../src/services/rpc-provider-base';
+import { HeliusService } from '../../src/rpc/helius-service';
+import { RPCProviderConfig } from '../../src/rpc/rpc-provider-base';
 
 // Mock WebSocket
 jest.mock('ws');

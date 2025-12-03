@@ -1,4 +1,4 @@
-import { HeliusService } from '../../../src/chains/solana/helius-service';
+import { HeliusService } from '../../src/rpc/helius-service';
 
 describe('HeliusService', () => {
   let heliusService: HeliusService;

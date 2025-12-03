@@ -1,4 +1,4 @@
-import { InfuraService } from '../../../src/chains/ethereum/infura-service';
+import { InfuraService } from '../../src/rpc/infura-service';
 
 describe('InfuraService', () => {
   let infuraService: InfuraService;

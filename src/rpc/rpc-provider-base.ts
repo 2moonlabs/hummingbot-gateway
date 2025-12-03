@@ -1,4 +1,4 @@
-import { logger } from './logger';
+import { logger } from '../services/logger';
 
 /**
  * Configuration interface for all RPC providers

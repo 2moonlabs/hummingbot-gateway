@@ -5,8 +5,8 @@ import '../../../mocks/app-mocks';
 
 import { gatewayApp } from '../../../../src/app';
 import { Ethereum } from '../../../../src/chains/ethereum/ethereum';
-import { InfuraService } from '../../../../src/chains/ethereum/infura-service';
 import { getEthereumStatus } from '../../../../src/chains/ethereum/routes/status';
+import { InfuraService } from '../../../../src/rpc/infura-service';
 
 // Mock the Ethereum class
 jest.mock('../../../../src/chains/ethereum/ethereum');
