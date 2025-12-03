@@ -53,6 +53,7 @@ const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
 
   // ========== Arbitrum DEXes (network: arbitrum) ==========
   uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-arbitrum': { connector: 'uniswap', type: 'amm' },
   sushiswap_arbitrum: { connector: 'sushiswap', type: 'amm' },
 
   // ========== Optimism DEXes (network: optimism) ==========
@@ -62,16 +63,22 @@ const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
 
   // ========== Base DEXes (network: base) ==========
   'uniswap-v3-base': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-base': { connector: 'uniswap', type: 'amm' },
   'sushiswap-v3-base': { connector: 'sushiswap', type: 'clmm' },
 
   // ========== Polygon DEXes (network: polygon_pos) ==========
   uniswap_v3_polygon_pos: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-polygon': { connector: 'uniswap', type: 'amm' },
   sushiswap_polygon_pos: { connector: 'sushiswap', type: 'amm' },
 
   // ========== Avalanche DEXes (network: avax) ==========
+  'uniswap-v3-avalanche': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-avalanche': { connector: 'uniswap', type: 'amm' },
   sushiswap_avalanche: { connector: 'sushiswap', type: 'amm' },
 
   // ========== BSC DEXes (network: bsc) ==========
+  'uniswap-bsc': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-bsc': { connector: 'uniswap', type: 'amm' },
   pancakeswap_v2: { connector: 'pancakeswap', type: 'amm' },
   'pancakeswap-v3-bsc': { connector: 'pancakeswap', type: 'clmm' },
   sushiswap_bsc: { connector: 'sushiswap', type: 'amm' },
