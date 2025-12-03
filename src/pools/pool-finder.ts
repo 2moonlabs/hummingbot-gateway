@@ -88,10 +88,12 @@ export async function findPools(
       type,
     );
 
-    // Filter to only pools that contain the secondary token
+    // Filter to only pools that contain the secondary token (case-insensitive for EVM addresses)
+    const secondaryLower = secondaryTokenAddress.toLowerCase();
     const pairPools = poolsForPrimary.filter(
       (pool: TopPoolInfo) =>
-        pool.baseTokenAddress === secondaryTokenAddress || pool.quoteTokenAddress === secondaryTokenAddress,
+        pool.baseTokenAddress.toLowerCase() === secondaryLower ||
+        pool.quoteTokenAddress.toLowerCase() === secondaryLower,
     );
 
     if (pairPools.length === 0) {
