@@ -152,6 +152,7 @@ export interface TopPoolInfo {
   quoteTokenAddress: string;
   baseTokenSymbol: string;
   quoteTokenSymbol: string;
+  feePct: number | null; // Fee percentage extracted from pool name (e.g., 0.05 for 0.05%)
   // Fields below can be extracted and transformed to PoolGeckoData
   priceUsd: string;
   priceNative: string;
@@ -271,13 +272,33 @@ export class CoinGeckoService {
   /**
    * Extract token symbol from pool name
    * Format: "SOL / USDC" -> "SOL" for base, "USDC" for quote
+   * Also handles fee suffixes like "VIRTUAL / WETH 0.05%" -> "WETH"
    */
   private extractSymbol(poolName: string, isBase: boolean): string {
     const parts = poolName.split(' / ');
     if (parts.length !== 2) {
       return 'UNKNOWN';
     }
-    return isBase ? parts[0].trim() : parts[1].trim();
+    let symbol = isBase ? parts[0].trim() : parts[1].trim();
+
+    // Remove fee percentage suffix (e.g., "WETH 0.05%" -> "WETH")
+    // Pattern: symbol followed by space and percentage like "0.05%", "0.3%", "1%"
+    symbol = symbol.replace(/\s+\d+(\.\d+)?%$/, '');
+
+    return symbol;
+  }
+
+  /**
+   * Extract fee percentage from pool name if present
+   * Format: "VIRTUAL / WETH 0.05%" -> 0.05
+   * Returns null if no fee found
+   */
+  private extractFeeFromPoolName(poolName: string): number | null {
+    const match = poolName.match(/\s+(\d+(?:\.\d+)?)%$/);
+    if (match) {
+      return parseFloat(match[1]);
+    }
+    return null;
   }
 
   /**
@@ -491,6 +512,7 @@ export class CoinGeckoService {
       quoteTokenAddress,
       baseTokenSymbol: this.extractSymbol(pool.attributes.name, true),
       quoteTokenSymbol: this.extractSymbol(pool.attributes.name, false),
+      feePct: this.extractFeeFromPoolName(pool.attributes.name),
       priceUsd: pool.attributes.base_token_price_usd,
       priceNative: pool.attributes.base_token_price_quote_token,
       volumeUsd24h: pool.attributes.volume_usd.h24,

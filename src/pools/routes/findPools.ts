@@ -31,7 +31,7 @@ function transformToPoolInfo(topPoolInfo: TopPoolInfo): Pool {
     quoteSymbol: topPoolInfo.quoteTokenSymbol,
     baseTokenAddress: topPoolInfo.baseTokenAddress,
     quoteTokenAddress: topPoolInfo.quoteTokenAddress,
-    feePct: 0, // Not available from TopPoolInfo, would need to fetch from connector
+    feePct: topPoolInfo.feePct ?? 0, // Use fee from pool name if available
     address: topPoolInfo.poolAddress,
     geckoData,
   };
