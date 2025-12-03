@@ -21,6 +21,10 @@
     "restrictIntermediateTokens": {
       "type": "boolean",
       "description": "Restrict routing through highly liquid intermediate tokens only"
+    },
+    "apiKey": {
+      "type": "string",
+      "description": "Jupiter API key for Solana DEX (https://portal.jup.ag)"
     }
   },
   "additionalProperties": false,

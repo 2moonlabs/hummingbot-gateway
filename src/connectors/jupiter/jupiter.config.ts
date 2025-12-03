@@ -30,7 +30,7 @@ export namespace JupiterConfig {
     maxLamports: ConfigManagerV2.getInstance().get('jupiter.maxLamports'),
     onlyDirectRoutes: ConfigManagerV2.getInstance().get('jupiter.onlyDirectRoutes'),
     restrictIntermediateTokens: ConfigManagerV2.getInstance().get('jupiter.restrictIntermediateTokens'),
-    apiKey: ConfigManagerV2.getInstance().get('apiKeys.jupiter'),
+    apiKey: ConfigManagerV2.getInstance().get('jupiter.apiKey'),
 
     availableNetworks: [
       {

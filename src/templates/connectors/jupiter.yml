@@ -17,4 +17,8 @@ onlyDirectRoutes: false
 # Default: true (for better price and stability)
 restrictIntermediateTokens: true
 
-# Note: Jupiter API key is configured in apiKeys.yml
+# Jupiter API key
+# Get your API key from https://portal.jup.ag
+# Without key: uses lite-api.jup.ag (deprecated Dec 31, 2025)
+# With key: uses api.jup.ag (free tier: 60 req/min)
+apiKey: ''

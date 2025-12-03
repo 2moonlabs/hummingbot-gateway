@@ -17,10 +17,6 @@
     "etherscan": {
       "type": "string",
       "description": "Etherscan API key for gas prices (https://etherscan.io/myapikey)"
-    },
-    "jupiter": {
-      "type": "string",
-      "description": "Jupiter API key for Solana DEX (https://portal.jup.ag)"
     }
   },
   "additionalProperties": true

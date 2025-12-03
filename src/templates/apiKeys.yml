@@ -21,8 +21,3 @@ coingecko: ''
 # Works for all Etherscan V2 API supported chains
 etherscan: ''
 
-# Jupiter - Solana DEX aggregator
-# Get your API key from https://portal.jup.ag
-# Without key: uses lite-api.jup.ag (deprecated Dec 31, 2025)
-# With key: uses api.jup.ag (free tier: 60 req/min)
-jupiter: ''
