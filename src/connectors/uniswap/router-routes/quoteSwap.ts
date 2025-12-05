@@ -15,7 +15,7 @@ import { UniswapConfig } from '../uniswap.config';
 async function quoteSwap(
   fastify: FastifyInstance,
   network: string,
-  walletAddress: string,
+  walletAddress: string | undefined,
   baseToken: string,
   quoteToken: string,
   amount: number,
@@ -23,7 +23,7 @@ async function quoteSwap(
   slippagePct: number = UniswapConfig.config.slippagePct,
 ): Promise<Static<typeof UniswapQuoteSwapResponse>> {
   logger.info(`[quoteSwap] Starting quote generation`);
-  logger.info(`[quoteSwap] Network: ${network}, Wallet: ${walletAddress}`);
+  logger.info(`[quoteSwap] Network: ${network}, Wallet: ${walletAddress || 'not provided'}`);
   logger.info(`[quoteSwap] Base: ${baseToken}, Quote: ${quoteToken}`);
   logger.info(`[quoteSwap] Amount: ${amount}, Side: ${side}, Slippage: ${slippagePct}%`);
 

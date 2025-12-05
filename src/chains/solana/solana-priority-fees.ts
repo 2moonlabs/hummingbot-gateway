@@ -26,10 +26,10 @@ export class SolanaPriorityFees {
     }
 
     try {
-      // Try to get Helius API key from RPC config
+      // Try to get Helius API key from apiKeys config
       const { ConfigManagerV2 } = await import('../../services/config-manager-v2');
       const configManager = ConfigManagerV2.getInstance();
-      const apiKey = configManager.get('helius.apiKey') || '';
+      const apiKey = configManager.get('apiKeys.helius') || '';
 
       if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
         const minimumFee = config.minPriorityFeePerCU || 0.1;

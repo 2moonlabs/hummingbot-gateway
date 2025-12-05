@@ -171,6 +171,7 @@ export async function addLiquidity(
     mintA.tokenProgram,
     'wrap',
     quote.tokenMaxA,
+    solana,
   );
   await handleWsolAta(
     builder,
@@ -180,6 +181,7 @@ export async function addLiquidity(
     mintB.tokenProgram,
     'wrap',
     quote.tokenMaxB,
+    solana,
   );
 
   const { lower, upper } = getTickArrayPubkeys(positionData, whirlpool.getData(), whirlpoolPubkey);

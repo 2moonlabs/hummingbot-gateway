@@ -21,24 +21,32 @@ async function executeSwap(
   side: 'BUY' | 'SELL',
   slippagePct: number = UniswapConfig.config.slippagePct,
 ): Promise<SwapExecuteResponseType> {
-  logger.info(`Executing swap: ${amount} ${baseToken} ${side} for ${quoteToken}`);
+  try {
+    logger.info(`Executing swap: ${amount} ${baseToken} ${side} for ${quoteToken}`);
 
-  // Step 1: Get quote
-  const quoteResponse = await quoteSwap(
-    fastify,
-    network,
-    walletAddress,
-    baseToken,
-    quoteToken,
-    amount,
-    side,
-    slippagePct,
-  );
+    // Step 1: Get quote
+    const quoteResponse = await quoteSwap(
+      fastify,
+      network,
+      walletAddress,
+      baseToken,
+      quoteToken,
+      amount,
+      side,
+      slippagePct,
+    );
 
-  // Step 2: Execute the quote
-  const executeResponse = await executeQuote(fastify, walletAddress, network, quoteResponse.quoteId);
+    // Step 2: Execute the quote
+    const executeResponse = await executeQuote(fastify, walletAddress, network, quoteResponse.quoteId);
 
-  return executeResponse;
+    return executeResponse;
+  } catch (error: any) {
+    if (error.statusCode) {
+      throw error;
+    }
+    logger.error(`Failed to execute swap: ${error.message}`);
+    throw fastify.httpErrors.internalServerError(error.message || 'Failed to execute swap');
+  }
 }
 
 export { executeSwap };

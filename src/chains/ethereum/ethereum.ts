@@ -3,17 +3,17 @@ import { BigNumber, Contract, ContractTransaction, providers, utils, Wallet, eth
 import { getAddress } from 'ethers/lib/utils';
 import fse from 'fs-extra';
 
+import { InfuraService } from '../../rpc/infura-service';
+import { createRateLimitAwareEthereumProvider } from '../../rpc/rpc-connection-interceptor';
 import { TokenValue, tokenValueToString } from '../../services/base';
 import { ConfigManagerCertPassphrase } from '../../services/config-manager-cert-passphrase';
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
 import { logger, redactUrl } from '../../services/logger';
-import { createRateLimitAwareEthereumProvider } from '../../services/rpc-connection-interceptor';
 import { TokenService } from '../../services/token-service';
 import { walletPath, isHardwareWallet as checkIsHardwareWallet } from '../../wallet/utils';
 
 import { getEthereumNetworkConfig, getEthereumChainConfig } from './ethereum.config';
 import { EtherscanService } from './etherscan-service';
-import { InfuraService } from './infura-service';
 
 // information about an Ethereum token
 export interface TokenInfo {
@@ -407,8 +407,7 @@ export class Ethereum {
     try {
       const configManager = ConfigManagerV2.getInstance();
       const providerConfig = {
-        apiKey: configManager.get('infura.apiKey') || '',
-        useWebSocket: configManager.get('infura.useWebSocket') || false,
+        apiKey: configManager.get('apiKeys.infura') || '',
       };
 
       // Validate API key
@@ -430,7 +429,6 @@ export class Ethereum {
       });
 
       logger.info(`✅ Infura API key configured (length: ${providerConfig.apiKey.length} chars)`);
-      logger.info(`Infura features enabled - WebSocket: ${providerConfig.useWebSocket}`);
 
       // Use Infura provider
       this.provider = this.infuraService.getProvider() as providers.StaticJsonRpcProvider;

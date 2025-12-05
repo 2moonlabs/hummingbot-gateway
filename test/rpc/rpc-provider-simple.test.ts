@@ -1,4 +1,4 @@
-import { getSolanaNetworkConfig, getSolanaChainConfig } from '../../../src/chains/solana/solana.config';
+import { getSolanaNetworkConfig, getSolanaChainConfig } from '../../src/chains/solana/solana.config';
 
 // Simple configuration tests without mocking complex dependencies
 describe('Solana RPC Provider Configuration Tests', () => {

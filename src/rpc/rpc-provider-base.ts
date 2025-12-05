@@ -1,12 +1,10 @@
-import { logger } from './logger';
+import { logger } from '../services/logger';
 
 /**
  * Configuration interface for all RPC providers
- * Matches the shared rpc-provider-schema.json
  */
 export interface RPCProviderConfig {
   apiKey: string;
-  useWebSocket: boolean;
 }
 
 /**
@@ -17,6 +15,14 @@ export interface NetworkInfo {
   chain: 'solana' | 'ethereum';
   network: string;
   chainId: number; // Chain ID (101 for Solana mainnet, 1 for Ethereum mainnet, etc.)
+}
+
+/**
+ * Result of transaction monitoring
+ */
+export interface TransactionMonitorResult {
+  confirmed: boolean;
+  txData?: any;
 }
 
 /**
@@ -70,14 +76,6 @@ export abstract class RPCProvider {
   }
 
   /**
-   * Check if WebSocket should be used
-   * Requires both useWebSocket config and valid API key
-   */
-  protected shouldUseWebSocket(): boolean {
-    return this.config.useWebSocket && this.isApiKeyValid();
-  }
-
-  /**
    * Check if WebSocket is currently connected
    * Override in subclasses to provide provider-specific implementation
    */
@@ -119,6 +117,26 @@ export abstract class RPCProvider {
   public async healthCheck(): Promise<boolean> {
     logger.warn(`${this.constructor.name}: healthCheck not implemented`);
     return true;
+  }
+
+  /**
+   * Check if transaction monitoring via WebSocket is supported
+   * Subclasses should override to return true if they support monitoring
+   */
+  public supportsTransactionMonitoring(): boolean {
+    return false;
+  }
+
+  /**
+   * Monitor a transaction for confirmation via WebSocket
+   * Connects on-demand if not already connected
+   * Subclasses should override to provide implementation
+   * @param signature Transaction signature to monitor
+   * @param timeoutMs Timeout in milliseconds
+   * @throws Error if monitoring is not supported or fails
+   */
+  public async monitorTransaction(_signature: string, _timeoutMs?: number): Promise<TransactionMonitorResult> {
+    throw new Error(`${this.constructor.name}: monitorTransaction not implemented`);
   }
 
   /**

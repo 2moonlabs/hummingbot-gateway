@@ -24,25 +24,68 @@ export interface DexConnectorInfo {
  * This allows filtering pools by connector (raydium, meteora, etc) and type (amm, clmm)
  *
  * DEX IDs are from GeckoTerminal API: /api/v2/networks/{network}/dexes
+ * Network IDs are from GeckoTerminal API: /api/v2/networks
+ *
+ * Supported networks and their GeckoTerminal IDs:
+ * - ethereum-mainnet -> eth
+ * - ethereum-arbitrum -> arbitrum
+ * - ethereum-optimism -> optimism
+ * - ethereum-base -> base
+ * - ethereum-polygon -> polygon_pos
+ * - ethereum-avalanche -> avax
+ * - ethereum-bsc -> bsc
+ * - ethereum-celo -> celo
+ * - solana-mainnet-beta -> solana
  */
 const DEX_CONNECTOR_MAPPING: Record<string, DexConnectorInfo> = {
-  // Solana DEXes (from GeckoTerminal /networks/solana/dexes)
+  // ========== Solana DEXes (network: solana) ==========
   raydium: { connector: 'raydium', type: 'amm' },
   'raydium-clmm': { connector: 'raydium', type: 'clmm' },
   meteora: { connector: 'meteora', type: 'clmm' },
+  'meteora-dlmm': { connector: 'meteora', type: 'clmm' },
   'pancakeswap-v3-solana': { connector: 'pancakeswap-sol', type: 'clmm' },
   orca: { connector: 'orca', type: 'clmm' },
 
-  // Ethereum DEXes
+  // ========== Ethereum Mainnet DEXes (network: eth) ==========
   uniswap_v2: { connector: 'uniswap', type: 'amm' },
   uniswap_v3: { connector: 'uniswap', type: 'clmm' },
   sushiswap: { connector: 'sushiswap', type: 'amm' },
-  sushiswap_v3: { connector: 'sushiswap', type: 'clmm' },
 
-  // BSC DEXes
+  // ========== Arbitrum DEXes (network: arbitrum) ==========
+  uniswap_v3_arbitrum: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-arbitrum': { connector: 'uniswap', type: 'amm' },
+  sushiswap_arbitrum: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Optimism DEXes (network: optimism) ==========
+  uniswap_v3_optimism: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-optimism': { connector: 'uniswap', type: 'amm' },
+  'sushiswap-v3-optimism': { connector: 'sushiswap', type: 'clmm' },
+
+  // ========== Base DEXes (network: base) ==========
+  'uniswap-v3-base': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-base': { connector: 'uniswap', type: 'amm' },
+  'sushiswap-v3-base': { connector: 'sushiswap', type: 'clmm' },
+
+  // ========== Polygon DEXes (network: polygon_pos) ==========
+  uniswap_v3_polygon_pos: { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-polygon': { connector: 'uniswap', type: 'amm' },
+  sushiswap_polygon_pos: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Avalanche DEXes (network: avax) ==========
+  'uniswap-v3-avalanche': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-avalanche': { connector: 'uniswap', type: 'amm' },
+  sushiswap_avalanche: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== BSC DEXes (network: bsc) ==========
+  'uniswap-bsc': { connector: 'uniswap', type: 'clmm' },
+  'uniswap-v2-bsc': { connector: 'uniswap', type: 'amm' },
   pancakeswap_v2: { connector: 'pancakeswap', type: 'amm' },
   'pancakeswap-v3-bsc': { connector: 'pancakeswap', type: 'clmm' },
   sushiswap_bsc: { connector: 'sushiswap', type: 'amm' },
+
+  // ========== Celo DEXes (network: celo) ==========
+  uniswap_v3_celo: { connector: 'uniswap', type: 'clmm' },
+  sushiswap_celo: { connector: 'sushiswap', type: 'amm' },
 };
 
 /**
@@ -109,6 +152,7 @@ export interface TopPoolInfo {
   quoteTokenAddress: string;
   baseTokenSymbol: string;
   quoteTokenSymbol: string;
+  feePct: number | null; // Fee percentage extracted from pool name (e.g., 0.05 for 0.05%)
   // Fields below can be extracted and transformed to PoolGeckoData
   priceUsd: string;
   priceNative: string;
@@ -178,7 +222,7 @@ export class CoinGeckoService {
 
   private constructor() {
     const configManager = ConfigManagerV2.getInstance();
-    this.apiKey = configManager.get('server.coingeckoAPIKey');
+    this.apiKey = configManager.get('apiKeys.coingecko');
 
     this.client = axios.create({
       baseURL: this.baseURL,
@@ -228,13 +272,33 @@ export class CoinGeckoService {
   /**
    * Extract token symbol from pool name
    * Format: "SOL / USDC" -> "SOL" for base, "USDC" for quote
+   * Also handles fee suffixes like "VIRTUAL / WETH 0.05%" -> "WETH"
    */
   private extractSymbol(poolName: string, isBase: boolean): string {
     const parts = poolName.split(' / ');
     if (parts.length !== 2) {
       return 'UNKNOWN';
     }
-    return isBase ? parts[0].trim() : parts[1].trim();
+    let symbol = isBase ? parts[0].trim() : parts[1].trim();
+
+    // Remove fee percentage suffix (e.g., "WETH 0.05%" -> "WETH")
+    // Pattern: symbol followed by space and percentage like "0.05%", "0.3%", "1%"
+    symbol = symbol.replace(/\s+\d+(\.\d+)?%$/, '');
+
+    return symbol;
+  }
+
+  /**
+   * Extract fee percentage from pool name if present
+   * Format: "VIRTUAL / WETH 0.05%" -> 0.05
+   * Returns null if no fee found
+   */
+  private extractFeeFromPoolName(poolName: string): number | null {
+    const match = poolName.match(/\s+(\d+(?:\.\d+)?)%$/);
+    if (match) {
+      return parseFloat(match[1]);
+    }
+    return null;
   }
 
   /**
@@ -448,6 +512,7 @@ export class CoinGeckoService {
       quoteTokenAddress,
       baseTokenSymbol: this.extractSymbol(pool.attributes.name, true),
       quoteTokenSymbol: this.extractSymbol(pool.attributes.name, false),
+      feePct: this.extractFeeFromPoolName(pool.attributes.name),
       priceUsd: pool.attributes.base_token_price_usd,
       priceNative: pool.attributes.base_token_price_quote_token,
       volumeUsd24h: pool.attributes.volume_usd.h24,

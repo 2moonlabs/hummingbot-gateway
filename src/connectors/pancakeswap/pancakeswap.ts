@@ -184,7 +184,7 @@ export class Pancakeswap {
    * @param outputToken The token being swapped to
    * @param amount The amount to swap
    * @param side The trade direction (BUY or SELL)
-   * @param walletAddress The recipient wallet address
+   * @param walletAddress The recipient wallet address (optional for quotes)
    * @returns Quote result from Universal Router
    */
   public async getUniversalRouterQuote(
@@ -192,7 +192,7 @@ export class Pancakeswap {
     outputToken: Token,
     amount: number,
     side: 'BUY' | 'SELL',
-    walletAddress: string,
+    walletAddress?: string,
   ): Promise<any> {
     // Determine input/output based on side
     const exactIn = side === 'SELL';
@@ -210,6 +210,8 @@ export class Pancakeswap {
     const slippageTolerance = new Percent(Math.floor(this.config.slippagePct * 100), 10000);
 
     // Get quote from Universal Router
+    // Use a placeholder address for quotes when no wallet is provided
+    const recipient = walletAddress || '0x0000000000000000000000000000000000000001';
     const quoteResult = await this.universalRouter.getQuote(
       inputToken,
       outputToken,
@@ -218,7 +220,7 @@ export class Pancakeswap {
       {
         slippageTolerance,
         deadline: Math.floor(Date.now() / 1000 + 1800), // 30 minutes
-        recipient: walletAddress,
+        recipient,
         protocols: protocolsToUse,
       },
     );

@@ -31,12 +31,8 @@ import type {
   Account,
 } from '@solana/kit';
 import { address } from '@solana/kit';
-import {
-  NATIVE_MINT,
-  createAssociatedTokenAccountIdempotentInstruction,
-  createSyncNativeInstruction,
-} from '@solana/spl-token';
-import { PublicKey, SystemProgram } from '@solana/web3.js';
+import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token';
+import { PublicKey } from '@solana/web3.js';
 import { fetchAllMint, Mint } from '@solana-program/token-2022';
 import BN from 'bn.js';
 
@@ -493,40 +489,24 @@ export async function handleWsolAta(
         return;
       }
 
-      let existingBalance = new BN(0);
-      if (ataInfo) {
-        const tokenAccountInfo = await client.getFetcher().getTokenInfo(tokenOwnerAccount);
-        if (tokenAccountInfo) {
-          existingBalance = new BN(tokenAccountInfo.amount.toString());
-        }
+      if (!solana) {
+        throw new Error('Solana instance required for wrap mode with WSOL');
       }
 
-      const amountNeeded = amountToWrap.sub(existingBalance);
-      if (amountNeeded.gtn(0)) {
-        logger.info(
-          `WSOL: existing balance ${existingBalance.toString()} lamports, wrapping ${amountNeeded.toString()} more`,
-        );
+      // Use solana.wrapSOL with checkBalance=true to only wrap the difference
+      const wrapInstructions = await solana.wrapSOL(
+        client.getContext().wallet.publicKey,
+        amountToWrap.toNumber(),
+        tokenProgram,
+        true, // checkBalance: only wrap the difference
+      );
+
+      if (wrapInstructions.length > 0) {
         builder.addInstruction({
-          instructions: [
-            createAssociatedTokenAccountIdempotentInstruction(
-              client.getContext().wallet.publicKey,
-              tokenOwnerAccount,
-              client.getContext().wallet.publicKey,
-              NATIVE_MINT,
-              tokenProgram,
-            ),
-            SystemProgram.transfer({
-              fromPubkey: client.getContext().wallet.publicKey,
-              toPubkey: tokenOwnerAccount,
-              lamports: amountNeeded.toNumber(),
-            }),
-            createSyncNativeInstruction(tokenOwnerAccount, tokenProgram),
-          ],
+          instructions: wrapInstructions,
           cleanupInstructions: [],
           signers: [],
         });
-      } else {
-        logger.info(`WSOL: existing balance ${existingBalance.toString()} lamports is sufficient`);
       }
     } else {
       // Regular token: just create ATA if it doesn't exist

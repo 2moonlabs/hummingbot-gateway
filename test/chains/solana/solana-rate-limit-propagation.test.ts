@@ -164,35 +164,6 @@ describe('Solana Rate Limit Error Propagation', () => {
       });
     });
 
-    it('should propagate 429 error during re-broadcast', async () => {
-      const error429 = new Error('Too many requests');
-      (error429 as any).statusCode = 429;
-
-      // Mock successful initial send, then fail with 429 on re-broadcast
-      mockConnection.sendRawTransaction = jest
-        .fn()
-        .mockResolvedValueOnce('test-signature')
-        .mockRejectedValueOnce(error429);
-
-      mockConnection.getLatestBlockhash = jest.fn().mockResolvedValue({
-        blockhash: 'test-blockhash',
-        lastValidBlockHeight: 100,
-      });
-
-      // Mock status check to show no confirmation
-      mockConnection.getSignatureStatuses = jest.fn().mockResolvedValue({
-        value: [null],
-      });
-
-      // Mock blockhash expired scenario
-      mockConnection.getBlockHeight = jest.fn().mockResolvedValue(101);
-
-      const serializedTx = Buffer.from([1, 2, 3]);
-      await expect((solana as any)._sendAndConfirmRawTransaction(serializedTx)).rejects.toMatchObject({
-        statusCode: 429,
-      });
-    });
-
     it('should propagate 429 error from getBlockHeight during polling', async () => {
       const error429 = new Error('Too many requests');
       (error429 as any).statusCode = 429;

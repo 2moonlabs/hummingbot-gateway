@@ -1,4 +1,4 @@
-import { HeliusService } from '../../../src/chains/solana/helius-service';
+import { HeliusService } from '../../src/rpc/helius-service';
 
 describe('HeliusService', () => {
   let heliusService: HeliusService;
@@ -6,7 +6,7 @@ describe('HeliusService', () => {
 
   beforeEach(() => {
     heliusService = new HeliusService(
-      { apiKey: testApiKey, useWebSocket: false },
+      { apiKey: testApiKey },
       { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
     );
   });
@@ -20,7 +20,7 @@ describe('HeliusService', () => {
 
     it('should return mainnet Helius URL for mainnet network', () => {
       const mainnetService = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: false },
+        { apiKey: testApiKey },
         { chain: 'solana', network: 'mainnet', chainId: 101 },
       );
       const url = mainnetService.getHttpUrl();
@@ -30,7 +30,7 @@ describe('HeliusService', () => {
 
     it('should return devnet Helius URL for devnet network', () => {
       const devnetService = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: false },
+        { apiKey: testApiKey },
         { chain: 'solana', network: 'devnet', chainId: 103 },
       );
       const url = devnetService.getHttpUrl();
@@ -40,7 +40,7 @@ describe('HeliusService', () => {
 
     it('should return devnet Helius URL for networks containing "devnet"', () => {
       const devnetService = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: false },
+        { apiKey: testApiKey },
         { chain: 'solana', network: 'solana-devnet', chainId: 103 },
       );
       const url = devnetService.getHttpUrl();
@@ -50,7 +50,7 @@ describe('HeliusService', () => {
 
     it('should include the correct API key in the URL', () => {
       const customService = new HeliusService(
-        { apiKey: 'custom-api-key-456', useWebSocket: false },
+        { apiKey: 'custom-api-key-456' },
         { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
       );
 
@@ -61,7 +61,7 @@ describe('HeliusService', () => {
 
     it('should handle empty API key', () => {
       const serviceWithEmptyKey = new HeliusService(
-        { apiKey: '', useWebSocket: false },
+        { apiKey: '' },
         { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
       );
 
@@ -72,22 +72,14 @@ describe('HeliusService', () => {
   });
 
   describe('getWebSocketUrl', () => {
-    it('should return WebSocket URL when enabled', () => {
-      const wsService = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: true },
-        { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
-      );
-
-      const wsUrl = wsService.getWebSocketUrl();
+    it('should return WebSocket URL when API key is valid', () => {
+      const wsUrl = heliusService.getWebSocketUrl();
 
       expect(wsUrl).toBe(`wss://mainnet.helius-rpc.com/?api-key=${testApiKey}`);
     });
 
-    it('should return null when WebSocket is disabled', () => {
-      const service = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: false },
-        { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
-      );
+    it('should return null when API key is invalid', () => {
+      const service = new HeliusService({ apiKey: '' }, { chain: 'solana', network: 'mainnet-beta', chainId: 101 });
 
       const wsUrl = service.getWebSocketUrl();
 
@@ -96,13 +88,25 @@ describe('HeliusService', () => {
 
     it('should return devnet WebSocket URL for devnet network', () => {
       const devnetWsService = new HeliusService(
-        { apiKey: testApiKey, useWebSocket: true },
+        { apiKey: testApiKey },
         { chain: 'solana', network: 'devnet', chainId: 103 },
       );
 
       const wsUrl = devnetWsService.getWebSocketUrl();
 
       expect(wsUrl).toBe(`wss://devnet.helius-rpc.com/?api-key=${testApiKey}`);
+    });
+  });
+
+  describe('supportsTransactionMonitoring', () => {
+    it('should return true when API key is valid', () => {
+      expect(heliusService.supportsTransactionMonitoring()).toBe(true);
+    });
+
+    it('should return false when API key is invalid', () => {
+      const service = new HeliusService({ apiKey: '' }, { chain: 'solana', network: 'mainnet-beta', chainId: 101 });
+
+      expect(service.supportsTransactionMonitoring()).toBe(false);
     });
   });
 
