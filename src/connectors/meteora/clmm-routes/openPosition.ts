@@ -43,10 +43,13 @@ export async function openPosition(
   // Validate addresses first
   try {
     new PublicKey(poolAddress);
+  } catch {
+    throw httpErrors.badRequest(`Invalid pool address: ${poolAddress}`);
+  }
+  try {
     new PublicKey(walletAddress);
-  } catch (error) {
-    const invalidAddress = error.message.includes(poolAddress) ? 'pool' : 'wallet';
-    throw httpErrors.badRequest(INVALID_SOLANA_ADDRESS_MESSAGE(invalidAddress));
+  } catch {
+    throw httpErrors.badRequest(`Invalid wallet address: ${walletAddress}`);
   }
 
   const wallet = await solana.getWallet(walletAddress);
@@ -255,7 +258,7 @@ export const openPositionRoute: FastifyPluginAsync = async (fastify) => {
       } catch (e) {
         logger.error(e);
         if (e.statusCode) {
-          throw httpErrors.createError(e.statusCode, e.message || 'Request failed');
+          throw e; // Re-throw HttpErrors with original message
         }
         throw httpErrors.internalServerError(e.message || 'Internal server error');
       }
