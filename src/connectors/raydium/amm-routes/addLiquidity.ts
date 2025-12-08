@@ -215,8 +215,8 @@ async function addLiquidity(
     const tokenBInfo = await solana.getToken(poolInfo.mintB.address);
 
     const { balanceChanges } = await solana.extractBalanceChangesAndFee(signature, walletAddress, [
-      tokenAInfo.address,
-      tokenBInfo.address,
+      tokenAInfo?.address || poolInfo.mintA.address,
+      tokenBInfo?.address || poolInfo.mintB.address,
     ]);
 
     const baseTokenBalanceChange = balanceChanges[0];
