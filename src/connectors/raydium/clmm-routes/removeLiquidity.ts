@@ -142,6 +142,7 @@ export const removeLiquidityRoute: FastifyPluginAsync = async (fastify) => {
         return await removeLiquidity(network, walletAddress, positionAddress, percentageToRemove, false);
       } catch (e) {
         logger.error(e);
+        if (e.statusCode) throw e;
         throw fastify.httpErrors.internalServerError('Internal server error');
       }
     },

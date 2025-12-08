@@ -166,6 +166,7 @@ export const addLiquidityRoute: FastifyPluginAsync = async (fastify) => {
         );
       } catch (e) {
         logger.error(e);
+        if (e.statusCode) throw e;
         throw httpErrors.internalServerError('Internal server error');
       }
     },
