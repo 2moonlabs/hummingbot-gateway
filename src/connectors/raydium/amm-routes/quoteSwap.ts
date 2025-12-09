@@ -2,11 +2,12 @@ import { ApiV3PoolInfoStandardItem, ApiV3PoolInfoStandardItemCpmm, CurveCalculat
 import { PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 import Decimal from 'decimal.js';
-import { FastifyPluginAsync, FastifyInstance } from 'fastify';
+import { FastifyPluginAsync } from 'fastify';
 
 import { estimateGasSolana } from '../../../chains/solana/routes/estimate-gas';
 import { Solana } from '../../../chains/solana/solana';
 import { QuoteSwapResponseType, QuoteSwapResponse, QuoteSwapRequestType } from '../../../schemas/amm-schema';
+import { httpErrors } from '../../../services/error-handler';
 import { logger } from '../../../services/logger';
 import { sanitizeErrorMessage } from '../../../services/sanitize';
 import { Raydium } from '../raydium';
@@ -46,10 +47,10 @@ async function quoteAmmSwap(
   const [baseReserve, quoteReserve, status] = [rpcData.baseReserve, rpcData.quoteReserve, rpcData.status.toNumber()];
 
   if (poolInfo.mintA.address !== inputMint && poolInfo.mintB.address !== inputMint)
-    throw new Error('input mint does not match pool');
+    throw httpErrors.badRequest('input mint does not match pool');
 
   if (poolInfo.mintA.address !== outputMint && poolInfo.mintB.address !== outputMint)
-    throw new Error('output mint does not match pool');
+    throw httpErrors.badRequest('output mint does not match pool');
 
   const baseIn = inputMint === poolInfo.mintA.address;
   const [mintIn, mintOut] = baseIn ? [poolInfo.mintA, poolInfo.mintB] : [poolInfo.mintB, poolInfo.mintA];
@@ -109,7 +110,7 @@ async function quoteAmmSwap(
     };
   }
 
-  throw new Error('Either amountIn or amountOut must be provided');
+  throw httpErrors.badRequest('Either amountIn or amountOut must be provided');
 }
 
 async function quoteCpmmSwap(
@@ -139,10 +140,10 @@ async function quoteCpmmSwap(
   }
 
   if (inputMint !== poolInfo.mintA.address && inputMint !== poolInfo.mintB.address)
-    throw new Error('input mint does not match pool');
+    throw httpErrors.badRequest('input mint does not match pool');
 
   if (outputMint !== poolInfo.mintA.address && outputMint !== poolInfo.mintB.address)
-    throw new Error('output mint does not match pool');
+    throw httpErrors.badRequest('output mint does not match pool');
 
   const baseIn = inputMint === poolInfo.mintA.address;
 
@@ -218,7 +219,7 @@ async function quoteCpmmSwap(
     };
   }
 
-  throw new Error('Either amountIn or amountOut must be provided');
+  throw httpErrors.badRequest('Either amountIn or amountOut must be provided');
 }
 
 export async function getRawSwapQuote(
@@ -242,7 +243,7 @@ export async function getRawSwapQuote(
   const ammPoolInfo = await raydium.getAmmPoolInfo(poolId);
 
   if (!ammPoolInfo) {
-    throw new Error(`Pool not found: ${poolId}`);
+    throw httpErrors.notFound(`Pool not found: ${poolId}`);
   }
 
   logger.info(`Pool type: ${ammPoolInfo.poolType}`);
@@ -284,7 +285,7 @@ export async function getRawSwapQuote(
 
     // If still not resolved, throw error
     if (!resolvedBaseToken || !resolvedQuoteToken) {
-      throw new Error(`Token not found: ${!resolvedBaseToken ? baseToken : quoteToken}`);
+      throw httpErrors.notFound(`Token not found: ${!resolvedBaseToken ? baseToken : quoteToken}`);
     }
   }
 
@@ -300,11 +301,11 @@ export async function getRawSwapQuote(
 
   // Verify input and output tokens match pool tokens
   if (baseTokenAddress !== ammPoolInfo.baseTokenAddress && baseTokenAddress !== ammPoolInfo.quoteTokenAddress) {
-    throw new Error(`Base token ${baseToken} is not in pool ${poolId}`);
+    throw httpErrors.badRequest(`Base token ${baseToken} is not in pool ${poolId}`);
   }
 
   if (quoteTokenAddress !== ammPoolInfo.baseTokenAddress && quoteTokenAddress !== ammPoolInfo.quoteTokenAddress) {
-    throw new Error(`Quote token ${quoteToken} is not in pool ${poolId}`);
+    throw httpErrors.badRequest(`Quote token ${quoteToken} is not in pool ${poolId}`);
   }
 
   // Determine which token is input and which is output based on exactIn flag
@@ -351,7 +352,7 @@ export async function getRawSwapQuote(
       slippagePct,
     );
   } else {
-    throw new Error(`Unsupported pool type: ${ammPoolInfo.poolType}`);
+    throw httpErrors.badRequest(`Unsupported pool type: ${ammPoolInfo.poolType}`);
   }
 
   logger.info(
@@ -373,7 +374,6 @@ export async function getRawSwapQuote(
 }
 
 async function formatSwapQuote(
-  _fastify: FastifyInstance,
   network: string,
   poolAddress: string,
   baseToken: string,
@@ -394,7 +394,7 @@ async function formatSwapQuote(
   const resolvedQuoteToken = await solana.getToken(quoteToken);
 
   if (!resolvedBaseToken || !resolvedQuoteToken) {
-    throw new Error(`Token not found: ${!resolvedBaseToken ? baseToken : quoteToken}`);
+    throw httpErrors.notFound(`Token not found: ${!resolvedBaseToken ? baseToken : quoteToken}`);
   }
 
   logger.info(
@@ -407,7 +407,7 @@ async function formatSwapQuote(
   // Get pool info
   const poolInfo = await raydium.getAmmPoolInfo(poolAddress);
   if (!poolInfo) {
-    throw new Error(sanitizeErrorMessage('Pool not found: {}', poolAddress));
+    throw httpErrors.notFound(sanitizeErrorMessage('Pool not found: {}', poolAddress));
   }
 
   logger.info(
@@ -503,7 +503,7 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
 
         // Validate essential parameters
         if (!baseToken || !quoteToken || !amount || !side) {
-          throw fastify.httpErrors.badRequest('baseToken, quoteToken, amount, and side are required');
+          throw httpErrors.badRequest('baseToken, quoteToken, amount, and side are required');
         }
 
         const raydium = await Raydium.getInstance(networkToUse);
@@ -518,7 +518,7 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
           const quoteTokenInfo = await solana.getToken(quoteToken);
 
           if (!baseTokenInfo || !quoteTokenInfo) {
-            throw fastify.httpErrors.badRequest(
+            throw httpErrors.badRequest(
               sanitizeErrorMessage('Token not found: {}', !baseTokenInfo ? baseToken : quoteToken),
             );
           }
@@ -536,7 +536,7 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
           );
 
           if (!pool) {
-            throw fastify.httpErrors.notFound(
+            throw httpErrors.notFound(
               `No AMM pool found for ${baseTokenInfo.symbol}-${quoteTokenInfo.symbol} on Raydium`,
             );
           }
@@ -545,7 +545,6 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
         }
 
         const result = await formatSwapQuote(
-          fastify,
           networkToUse,
           poolAddressToUse,
           baseToken,
@@ -557,7 +556,7 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
 
         let gasEstimation = null;
         try {
-          gasEstimation = await estimateGasSolana(fastify, networkToUse);
+          gasEstimation = await estimateGasSolana(networkToUse);
         } catch (error) {
           logger.warn(`Failed to estimate gas for swap quote: ${error.message}`);
         }
@@ -569,12 +568,12 @@ export const quoteSwapRoute: FastifyPluginAsync = async (fastify) => {
           throw e;
         }
         if (e.message?.includes('Pool not found')) {
-          throw fastify.httpErrors.notFound(e.message);
+          throw httpErrors.notFound(e.message);
         }
         if (e.message?.includes('Token not found')) {
-          throw fastify.httpErrors.badRequest(e.message);
+          throw httpErrors.badRequest(e.message);
         }
-        throw fastify.httpErrors.internalServerError('Internal server error');
+        throw httpErrors.internalServerError('Internal server error');
       }
     },
   );
@@ -584,7 +583,6 @@ export default quoteSwapRoute;
 
 // Export quoteSwap wrapper for chain-level routes
 export async function quoteSwap(
-  fastify: FastifyInstance,
   network: string,
   poolAddress: string,
   baseToken: string,
@@ -593,5 +591,5 @@ export async function quoteSwap(
   side: 'BUY' | 'SELL',
   slippagePct: number = RaydiumConfig.config.slippagePct,
 ): Promise<QuoteSwapResponseType> {
-  return await formatSwapQuote(fastify, network, poolAddress, baseToken, quoteToken, amount, side, slippagePct);
+  return await formatSwapQuote(network, poolAddress, baseToken, quoteToken, amount, side, slippagePct);
 }
