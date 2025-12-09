@@ -175,8 +175,8 @@ export async function openPosition(
 
   if (confirmed && txData) {
     const { balanceChanges } = await solana.extractBalanceChangesAndFee(signature, wallet.publicKey.toBase58(), [
-      tokenX.address,
-      tokenY.address,
+      tokenX?.address || dlmmPool.tokenX.publicKey.toBase58(),
+      tokenY?.address || dlmmPool.tokenY.publicKey.toBase58(),
     ]);
 
     const baseTokenBalanceChange = balanceChanges[0];
