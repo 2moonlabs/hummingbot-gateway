@@ -147,8 +147,6 @@ export class UniversalRouterService {
       throw new Error(`No routes found for ${tokenIn.symbol} -> ${tokenOut.symbol}`);
     }
 
-    const ethereum = await this.getEthereum();
-
     // const publicClient = createPublicClient({
     //   chain: ethereum.chainId as unknown as Chain, // or the equivalent constant for BNB Chain
     //   transport: http(ethereum.rpcUrl),
@@ -158,7 +156,7 @@ export class UniversalRouterService {
     });
 
     const gasPriceWei = async (): Promise<bigint> => {
-      const gasPrice = await ethereum.provider.getGasPrice();
+      const gasPrice = await this.provider.getGasPrice();
       return gasPrice.toBigInt(); // ✅ convert to bigint
     };
 
