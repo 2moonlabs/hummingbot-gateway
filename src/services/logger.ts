@@ -45,6 +45,12 @@ export const redactUrl = (url: string): string => {
   // Match 32 characters of alphanumeric after /v3/
   redacted = redacted.replace(/(\/v3\/)([a-zA-Z0-9]{32})($|\/|\?)/gi, '$1***$3');
 
+  // Redact Chainstack-style path tokens (e.g.,
+  //   https://<network>.core.chainstack.com/<token>
+  //   https://<network>.p2pify.com/<token>
+  // ). The path segment IS the per-node access credential.
+  redacted = redacted.replace(/(core\.chainstack\.com|p2pify\.com)\/[A-Za-z0-9]+/gi, '$1/***');
+
   return redacted;
 };
 
