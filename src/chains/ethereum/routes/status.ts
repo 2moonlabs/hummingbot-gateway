@@ -25,6 +25,16 @@ export async function getEthereumStatus(network: string): Promise<StatusResponse
           logger.warn(`Failed to get Infura URL, using standard rpcUrl: ${error.message}`);
         }
       }
+    } else if (rpcProvider === 'chainstack') {
+      const chainstackService = ethereum.getChainstackService();
+      if (chainstackService) {
+        try {
+          rpcUrl = chainstackService.getHttpUrl();
+        } catch (error) {
+          // If Chainstack URL generation fails, fall back to standard rpcUrl
+          logger.warn(`Failed to get Chainstack URL, using standard rpcUrl: ${error.message}`);
+        }
+      }
     }
 
     const nativeCurrency = ethereum.nativeTokenSymbol;
