@@ -96,3 +96,8 @@ configurations:
   $namespace apiKeys:
     configurationPath: apiKeys.yml
     schemaPath: apiKeys-schema.json
+
+  # RPC providers
+  $namespace chainstack:
+    configurationPath: rpc/chainstack.yml
+    schemaPath: chainstack-schema.json
