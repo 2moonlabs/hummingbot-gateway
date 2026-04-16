@@ -1,8 +1,0 @@
-# Chainstack - Multi-chain RPC provider (Solana + EVM)
-# API key lives in apiKeys.yml under `chainstack`
-# Get your API key from https://console.chainstack.com/user/settings/api-keys
-# Nodes are auto-discovered via the Chainstack Platform API.
-
-# Optional: pin a specific node ID (e.g., ND-123-456-789).
-# When empty, the first running node matching the active chain/network is used.
-preferredNodeId: ''

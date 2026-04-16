@@ -114,7 +114,6 @@ export class Solana {
     try {
       const configManager = ConfigManagerV2.getInstance();
       const apiKey = configManager.get('apiKeys.chainstack') || '';
-      const preferredNodeId = configManager.get('chainstack.preferredNodeId') || '';
 
       if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
         logger.warn(`⚠️ Chainstack provider selected but no valid API key configured`);
@@ -125,7 +124,6 @@ export class Solana {
       this.rpcProviderService = new ChainstackService(
         { apiKey },
         { chain: 'solana', network: this.network, chainId: this.config.chainID },
-        preferredNodeId,
       );
 
       logger.info(`✅ Chainstack API key configured (length: ${apiKey.length} chars)`);

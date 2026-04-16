@@ -79,7 +79,6 @@ export class ChainstackService extends RPCProvider {
     'solana:devnet': { protocol: 'solana', network: 'solana-devnet' },
   };
 
-  private readonly preferredNodeId: string;
   private selectedNode: ChainstackNode | null = null;
   private ethereumProvider: providers.StaticJsonRpcProvider | null = null;
 
@@ -89,9 +88,8 @@ export class ChainstackService extends RPCProvider {
   private readonly idleTimeoutMs = 30000;
   private connecting: Promise<void> | null = null;
 
-  constructor(config: RPCProviderConfig, networkInfo: NetworkInfo, preferredNodeId: string = '') {
+  constructor(config: RPCProviderConfig, networkInfo: NetworkInfo) {
     super(config, networkInfo);
-    this.preferredNodeId = preferredNodeId.trim();
   }
 
   /**
@@ -109,9 +107,7 @@ export class ChainstackService extends RPCProvider {
 
   /**
    * Discover the caller's Chainstack node via the Platform API and cache it.
-   *
-   * - If `preferredNodeId` is set, the matching running node with that id is used.
-   * - Otherwise the first running node matching the mapped protocol/network wins.
+   * The first running node matching the mapped protocol/network is used.
    */
   public async initialize(): Promise<void> {
     if (!this.isApiKeyValid()) {
@@ -140,29 +136,20 @@ export class ChainstackService extends RPCProvider {
       );
     }
 
-    const node = this.preferredNodeId ? candidates.find((n) => n.id === this.preferredNodeId) : candidates[0];
-
-    if (!node) {
-      throw new Error(
-        `Preferred Chainstack node ${this.preferredNodeId} not found (or not running) for ` +
-          `${this.networkInfo.chain}/${this.networkInfo.network}`,
-      );
-    }
-
-    this.selectedNode = node;
+    this.selectedNode = candidates[0];
 
     if (this.networkInfo.chain === 'ethereum') {
       this.ethereumProvider = createRateLimitAwareEthereumProvider(
-        new providers.StaticJsonRpcProvider(node.https_endpoint, {
+        new providers.StaticJsonRpcProvider(this.selectedNode.https_endpoint, {
           name: mapping.network,
           chainId: this.networkInfo.chainId,
         }),
-        node.https_endpoint,
+        this.selectedNode.https_endpoint,
       );
     }
 
     logger.info(
-      `Chainstack service initialized: node ${node.id} (${node.protocol}/${node.network}) for ${this.networkInfo.chain}/${this.networkInfo.network}`,
+      `Chainstack service initialized: node ${this.selectedNode.id} (${this.selectedNode.protocol}/${this.selectedNode.network}) for ${this.networkInfo.chain}/${this.networkInfo.network}`,
     );
   }
 

@@ -92,32 +92,6 @@ describe('ChainstackService', () => {
       expect(service.getHttpUrl()).toBe(arbitrumNode.https_endpoint);
     });
 
-    it('honours preferredNodeId when multiple nodes match', async () => {
-      const duplicate = { ...solanaMainnetNode, id: 'ND-999-999-999', https_endpoint: 'https://other' };
-      mockedHttpGet.mockResolvedValueOnce(mockOk([solanaMainnetNode, duplicate]));
-
-      const service = new ChainstackService(
-        { apiKey: testApiKey },
-        { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
-        'ND-999-999-999',
-      );
-      await service.initialize();
-
-      expect(service.getHttpUrl()).toBe('https://other');
-    });
-
-    it('throws when preferredNodeId does not match any running node', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([solanaMainnetNode]));
-
-      const service = new ChainstackService(
-        { apiKey: testApiKey },
-        { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
-        'ND-does-not-exist',
-      );
-
-      await expect(service.initialize()).rejects.toThrow(/Preferred Chainstack node/);
-    });
-
     it('ignores stopped nodes', async () => {
       const stopped = { ...solanaMainnetNode, status: 'stopped' };
       mockedHttpGet.mockResolvedValueOnce(mockOk([stopped]));

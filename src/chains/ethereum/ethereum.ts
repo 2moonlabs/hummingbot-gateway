@@ -458,7 +458,6 @@ export class Ethereum {
     try {
       const configManager = ConfigManagerV2.getInstance();
       const apiKey = configManager.get('apiKeys.chainstack') || '';
-      const preferredNodeId = configManager.get('chainstack.preferredNodeId') || '';
 
       if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
         logger.warn(`⚠️ Chainstack provider selected but no valid API key configured`);
@@ -469,7 +468,6 @@ export class Ethereum {
       this.chainstackService = new ChainstackService(
         { apiKey },
         { chain: 'ethereum', network: this.network, chainId: this.chainId },
-        preferredNodeId,
       );
 
       logger.info(`✅ Chainstack API key configured (length: ${apiKey.length} chars)`);
