@@ -16,32 +16,83 @@ const mockOk = <T>(data: T) => ({ data, status: 200, statusText: 'OK' });
 
 const testApiKey = 'test-chainstack-key-123';
 
-const solanaMainnetNode = {
-  id: 'ND-111-111-111',
-  protocol: 'solana',
-  network: 'solana-mainnet',
-  status: 'running',
-  https_endpoint: 'https://solana-mainnet.core.chainstack.com/abc',
-  wss_endpoint: 'wss://solana-mainnet.core.chainstack.com/abc',
-};
+// ---------- API-shaped fixtures (match real Chainstack Platform API) ----------
 
-const ethereumMainnetNode = {
-  id: 'ND-333-333-333',
-  protocol: 'ethereum',
-  network: 'ethereum-mainnet',
-  status: 'running',
-  https_endpoint: 'https://ethereum-mainnet.core.chainstack.com/ghi',
-  wss_endpoint: 'wss://ethereum-mainnet.core.chainstack.com/ghi',
-};
+const mkApiNode = (
+  id: string,
+  networkId: string,
+  status: string,
+  authKey: string,
+  httpsBase: string,
+  wssBase: string,
+) => ({
+  id,
+  name: `test-${id}`,
+  network: networkId,
+  status,
+  details: {
+    https_endpoint: httpsBase,
+    wss_endpoint: wssBase,
+    auth_key: authKey,
+  },
+});
 
-const arbitrumNode = {
-  id: 'ND-444-444-444',
-  protocol: 'arbitrum',
-  network: 'arbitrum-mainnet',
-  status: 'running',
-  https_endpoint: 'https://arbitrum-mainnet.core.chainstack.com/jkl',
-  wss_endpoint: 'wss://arbitrum-mainnet.core.chainstack.com/jkl',
-};
+const mkNetworkResponse = (id: string, protocol: string, network: string) => ({
+  id,
+  protocol,
+  configuration: { network },
+});
+
+// Solana mainnet
+const solanaNodeApi = mkApiNode(
+  'ND-111-111-111',
+  'NW-SOL-MAIN',
+  'running',
+  'abc123',
+  'https://solana-mainnet.core.chainstack.com',
+  'wss://solana-mainnet.core.chainstack.com',
+);
+const solanaNetResp = mkNetworkResponse('NW-SOL-MAIN', 'solana', 'solana-mainnet');
+
+// Ethereum mainnet
+const ethNodeApi = mkApiNode(
+  'ND-333-333-333',
+  'NW-ETH-MAIN',
+  'running',
+  'ghi789',
+  'https://ethereum-mainnet.core.chainstack.com',
+  'wss://ethereum-mainnet.core.chainstack.com',
+);
+const ethNetResp = mkNetworkResponse('NW-ETH-MAIN', 'ethereum', 'ethereum-mainnet');
+
+// Arbitrum mainnet
+const arbNodeApi = mkApiNode(
+  'ND-444-444-444',
+  'NW-ARB-MAIN',
+  'running',
+  'jkl012',
+  'https://arbitrum-mainnet.core.chainstack.com',
+  'wss://arbitrum-mainnet.core.chainstack.com',
+);
+const arbNetResp = mkNetworkResponse('NW-ARB-MAIN', 'arbitrum', 'arbitrum-mainnet');
+
+/** Mock httpGet to return paginated nodes, then resolve networks on demand. */
+function mockNodesAndNetworks(
+  apiNodes: ReturnType<typeof mkApiNode>[],
+  networks: Record<string, ReturnType<typeof mkNetworkResponse>>,
+) {
+  mockedHttpGet.mockImplementation(async (url: string) => {
+    if (url.includes('/v1/nodes')) {
+      return mockOk({ count: apiNodes.length, next: null, previous: null, results: apiNodes });
+    }
+    // /v1/networks/{id}
+    const netId = url.split('/networks/')[1];
+    if (netId && networks[netId]) {
+      return mockOk(networks[netId]);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+}
 
 describe('ChainstackService', () => {
   beforeEach(() => {
@@ -49,8 +100,10 @@ describe('ChainstackService', () => {
   });
 
   describe('initialize', () => {
-    it('discovers a Solana mainnet node and caches endpoints', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([solanaMainnetNode, ethereumMainnetNode]));
+    it('discovers a Solana mainnet node and caches authenticated endpoints', async () => {
+      mockNodesAndNetworks([solanaNodeApi, ethNodeApi], {
+        'NW-SOL-MAIN': solanaNetResp,
+      });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -58,18 +111,12 @@ describe('ChainstackService', () => {
       );
       await service.initialize();
 
-      expect(mockedHttpGet).toHaveBeenCalledWith(
-        'https://api.chainstack.com/v1/nodes',
-        expect.objectContaining({
-          headers: { Authorization: `Bearer ${testApiKey}` },
-        }),
-      );
-      expect(service.getHttpUrl()).toBe(solanaMainnetNode.https_endpoint);
-      expect(service.getWebSocketUrl()).toBe(solanaMainnetNode.wss_endpoint);
+      expect(service.getHttpUrl()).toBe('https://solana-mainnet.core.chainstack.com/abc123');
+      expect(service.getWebSocketUrl()).toBe('wss://solana-mainnet.core.chainstack.com/abc123');
     });
 
     it('discovers an Ethereum mainnet node', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([ethereumMainnetNode]));
+      mockNodesAndNetworks([ethNodeApi], { 'NW-ETH-MAIN': ethNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -77,11 +124,14 @@ describe('ChainstackService', () => {
       );
       await service.initialize();
 
-      expect(service.getHttpUrl()).toBe(ethereumMainnetNode.https_endpoint);
+      expect(service.getHttpUrl()).toBe('https://ethereum-mainnet.core.chainstack.com/ghi789');
     });
 
-    it('maps arbitrum/polygon via protocol name, not "ethereum"', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([ethereumMainnetNode, arbitrumNode]));
+    it('maps arbitrum via resolved protocol, not "ethereum"', async () => {
+      mockNodesAndNetworks([ethNodeApi, arbNodeApi], {
+        'NW-ETH-MAIN': ethNetResp,
+        'NW-ARB-MAIN': arbNetResp,
+      });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -89,12 +139,12 @@ describe('ChainstackService', () => {
       );
       await service.initialize();
 
-      expect(service.getHttpUrl()).toBe(arbitrumNode.https_endpoint);
+      expect(service.getHttpUrl()).toBe('https://arbitrum-mainnet.core.chainstack.com/jkl012');
     });
 
     it('ignores stopped nodes', async () => {
-      const stopped = { ...solanaMainnetNode, status: 'stopped' };
-      mockedHttpGet.mockResolvedValueOnce(mockOk([stopped]));
+      const stopped = mkApiNode('ND-999', 'NW-SOL-MAIN', 'stopped', 'xxx', 'https://x', 'wss://x');
+      mockNodesAndNetworks([stopped], { 'NW-SOL-MAIN': solanaNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -105,7 +155,7 @@ describe('ChainstackService', () => {
     });
 
     it('throws when no matching node exists for the requested network', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([ethereumMainnetNode]));
+      mockNodesAndNetworks([ethNodeApi], { 'NW-ETH-MAIN': ethNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -115,8 +165,8 @@ describe('ChainstackService', () => {
       await expect(service.initialize()).rejects.toThrow(/No running Chainstack node/);
     });
 
-    it('throws when the gateway network is not mapped to a Chainstack network', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([]));
+    it('throws when the gateway network is not mapped', async () => {
+      mockNodesAndNetworks([], {});
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -155,7 +205,7 @@ describe('ChainstackService', () => {
 
   describe('supportsTransactionMonitoring', () => {
     it('returns true for Solana after initialize (WSS endpoint present)', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([solanaMainnetNode]));
+      mockNodesAndNetworks([solanaNodeApi], { 'NW-SOL-MAIN': solanaNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -167,7 +217,7 @@ describe('ChainstackService', () => {
     });
 
     it('returns false for Ethereum even after initialize', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([ethereumMainnetNode]));
+      mockNodesAndNetworks([ethNodeApi], { 'NW-ETH-MAIN': ethNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -190,7 +240,7 @@ describe('ChainstackService', () => {
 
   describe('getProvider', () => {
     it('returns an ethers provider after Ethereum initialize', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([ethereumMainnetNode]));
+      mockNodesAndNetworks([ethNodeApi], { 'NW-ETH-MAIN': ethNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },
@@ -200,12 +250,11 @@ describe('ChainstackService', () => {
 
       const provider = service.getProvider();
       expect(provider).toBeDefined();
-      // Rate-limit interceptor wraps the provider in a Proxy; connection.url is preserved.
-      expect(provider.connection.url).toBe(ethereumMainnetNode.https_endpoint);
+      expect(provider.connection.url).toBe('https://ethereum-mainnet.core.chainstack.com/ghi789');
     });
 
     it('throws on Solana chain (Ethereum-only)', async () => {
-      mockedHttpGet.mockResolvedValueOnce(mockOk([solanaMainnetNode]));
+      mockNodesAndNetworks([solanaNodeApi], { 'NW-SOL-MAIN': solanaNetResp });
 
       const service = new ChainstackService(
         { apiKey: testApiKey },

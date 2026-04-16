@@ -7,6 +7,36 @@ import { logger } from '../services/logger';
 import { createRateLimitAwareEthereumProvider } from './rpc-connection-interceptor';
 import { RPCProvider, RPCProviderConfig, NetworkInfo, TransactionMonitorResult } from './rpc-provider-base';
 
+/** Raw node object returned by GET /v1/nodes */
+interface ChainstackApiNode {
+  id: string;
+  name: string;
+  network: string; // Network ID, e.g. "NW-056-237-8"
+  status: string;
+  configuration?: { client?: string };
+  details: {
+    https_endpoint: string;
+    wss_endpoint: string;
+    auth_key: string;
+  };
+}
+
+/** Paginated response from GET /v1/nodes */
+interface ChainstackNodesResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ChainstackApiNode[];
+}
+
+/** Network object returned by GET /v1/networks/{id} */
+interface ChainstackApiNetwork {
+  id: string;
+  protocol: string;
+  configuration?: { network?: string };
+}
+
+/** Flattened node with resolved protocol/network and authenticated endpoints */
 interface ChainstackNode {
   id: string;
   protocol: string;
@@ -57,7 +87,8 @@ interface WebSocketMessage {
  * - HTTP JsonRpcProvider for Ethereum (with rate-limit interceptor)
  */
 export class ChainstackService extends RPCProvider {
-  private static readonly API_URL = 'https://api.chainstack.com/v1/nodes';
+  private static readonly API_BASE = 'https://api.chainstack.com/v1';
+  private static readonly NODES_URL = `${ChainstackService.API_BASE}/nodes`;
 
   /**
    * Maps gateway (chain, network) → Chainstack (protocol, network).
@@ -106,8 +137,35 @@ export class ChainstackService extends RPCProvider {
   }
 
   /**
+   * Build an authenticated endpoint URL by appending the auth_key path segment.
+   */
+  private static buildAuthUrl(baseUrl: string, authKey: string): string {
+    // Strip trailing slash, append /{authKey}
+    return `${baseUrl.replace(/\/+$/, '')}/${authKey}`;
+  }
+
+  /**
+   * Resolve an API network ID (e.g. "NW-056-237-8") to its protocol and
+   * configuration.network via GET /v1/networks/{id}.
+   */
+  private async resolveNetwork(networkId: string): Promise<ChainstackApiNetwork> {
+    const url = `${ChainstackService.API_BASE}/networks/${networkId}`;
+    const resp = await httpGet<ChainstackApiNetwork>(url, {
+      headers: { Authorization: `Bearer ${this.config.apiKey}` },
+      timeout: 10000,
+    });
+    return resp.data;
+  }
+
+  /**
    * Discover the caller's Chainstack node via the Platform API and cache it.
-   * The first running node matching the mapped protocol/network is used.
+   *
+   * Strategy:
+   *  1. Fetch all nodes (paginated).
+   *  2. Filter to running nodes.
+   *  3. For each candidate, resolve the network to get protocol + network name.
+   *  4. Pick the first node whose resolved protocol/network matches the mapping.
+   *  5. Build authenticated endpoint URLs using details.auth_key.
    */
   public async initialize(): Promise<void> {
     if (!this.isApiKeyValid()) {
@@ -116,27 +174,69 @@ export class ChainstackService extends RPCProvider {
 
     const mapping = this.getMapping();
 
-    const response = await httpGet<ChainstackNode[]>(ChainstackService.API_URL, {
+    const response = await httpGet<ChainstackNodesResponse>(ChainstackService.NODES_URL, {
       headers: { Authorization: `Bearer ${this.config.apiKey}` },
       timeout: 10000,
     });
 
-    if (!Array.isArray(response.data)) {
+    const results = Array.isArray(response.data)
+      ? (response.data as unknown as ChainstackApiNode[])
+      : response.data?.results;
+
+    if (!Array.isArray(results)) {
       throw new Error('Chainstack API returned unexpected response shape');
     }
 
-    const candidates = response.data.filter(
-      (node) => node.protocol === mapping.protocol && node.network === mapping.network && node.status === 'running',
-    );
+    const running = results.filter((n) => n.status === 'running');
 
-    if (candidates.length === 0) {
+    // Resolve each running node's network to match against the gateway mapping.
+    // Cache resolved networks to avoid duplicate lookups.
+    const networkCache = new Map<string, ChainstackApiNetwork>();
+    let matched: ChainstackApiNode | null = null;
+    let resolvedProtocol = '';
+    let resolvedNetwork = '';
+
+    for (const node of running) {
+      let netInfo = networkCache.get(node.network);
+      if (!netInfo) {
+        try {
+          netInfo = await this.resolveNetwork(node.network);
+          networkCache.set(node.network, netInfo);
+        } catch {
+          continue; // skip nodes whose network can't be resolved
+        }
+      }
+      const proto = netInfo.protocol || node.configuration?.client || '';
+      const netName = netInfo.configuration?.network || '';
+
+      if (proto === mapping.protocol && netName === mapping.network) {
+        matched = node;
+        resolvedProtocol = proto;
+        resolvedNetwork = netName;
+        break;
+      }
+    }
+
+    if (!matched) {
       throw new Error(
         `No running Chainstack node found for ${this.networkInfo.chain}/${this.networkInfo.network} ` +
           `(protocol=${mapping.protocol}, network=${mapping.network})`,
       );
     }
 
-    this.selectedNode = candidates[0];
+    const authKey = matched.details.auth_key || '';
+    this.selectedNode = {
+      id: matched.id,
+      protocol: resolvedProtocol,
+      network: resolvedNetwork,
+      status: matched.status,
+      https_endpoint: authKey
+        ? ChainstackService.buildAuthUrl(matched.details.https_endpoint, authKey)
+        : matched.details.https_endpoint,
+      wss_endpoint: authKey
+        ? ChainstackService.buildAuthUrl(matched.details.wss_endpoint, authKey)
+        : matched.details.wss_endpoint,
+    };
 
     if (this.networkInfo.chain === 'ethereum') {
       this.ethereumProvider = createRateLimitAwareEthereumProvider(
