@@ -110,6 +110,17 @@ export class ChainstackService extends RPCProvider {
     'solana:devnet': { protocol: 'solana', network: 'solana-devnet' },
   };
 
+  /**
+   * List of (chain, network) pairs Chainstack discovery supports.
+   * Exposed so smoke tests / tooling can iterate without redeclaring the list.
+   */
+  public static getSupportedNetworks(): Array<{ chain: 'solana' | 'ethereum'; network: string }> {
+    return Object.keys(ChainstackService.NETWORK_MAP).map((key) => {
+      const [chain, network] = key.split(':');
+      return { chain: chain as 'solana' | 'ethereum', network };
+    });
+  }
+
   private selectedNode: ChainstackNode | null = null;
   private ethereumProvider: providers.StaticJsonRpcProvider | null = null;
 
