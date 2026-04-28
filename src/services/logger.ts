@@ -33,8 +33,8 @@ export const getLocalDate = () => {
  * @param url - The URL that may contain sensitive information
  * @returns URL with API keys redacted
  */
-export const redactUrl = (url: string): string => {
-  if (!url) return url;
+export const redactUrl = (url: string | null | undefined): string => {
+  if (!url) return url ?? '';
 
   let redacted = url;
 

@@ -199,16 +199,17 @@ export class Solana {
 
   private async init(): Promise<void> {
     try {
-      // Initialize RPC provider service if configured
+      // Initialize RPC provider service if configured. Some providers
+      // (Chainstack) only know their HTTP URL after initialize() resolves
+      // discovery; others (Helius) return it eagerly. Treat both uniformly:
+      // if getHttpUrl() yields a URL, swap the connection to it.
       if (this.rpcProviderService) {
         try {
           await this.rpcProviderService.initialize();
 
-          // Chainstack discovers its endpoint during initialize(); swap the
-          // placeholder nodeURL connection for the discovered Chainstack URL.
-          if (this.rpcProviderService instanceof ChainstackService) {
-            const rpcUrl = this.rpcProviderService.getHttpUrl();
-            logger.info(`Using Chainstack RPC URL: ${redactUrl(rpcUrl)}`);
+          const rpcUrl = this.rpcProviderService.getHttpUrl();
+          if (rpcUrl) {
+            logger.info(`Using ${this.rpcProviderService.getProviderName()} RPC URL: ${redactUrl(rpcUrl)}`);
             this.connection = createRateLimitAwareSolanaConnection(
               new Connection(rpcUrl, { commitment: 'confirmed' }),
               rpcUrl,

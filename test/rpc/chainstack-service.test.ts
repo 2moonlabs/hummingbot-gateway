@@ -184,13 +184,13 @@ describe('ChainstackService', () => {
   });
 
   describe('getHttpUrl / getWebSocketUrl', () => {
-    it('getHttpUrl throws before initialize()', () => {
+    it('getHttpUrl returns null before initialize()', () => {
       const service = new ChainstackService(
         { apiKey: testApiKey },
         { chain: 'solana', network: 'mainnet-beta', chainId: 101 },
       );
 
-      expect(() => service.getHttpUrl()).toThrow(/not initialized/);
+      expect(service.getHttpUrl()).toBeNull();
     });
 
     it('getWebSocketUrl returns null before initialize()', () => {

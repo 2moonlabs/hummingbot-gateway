@@ -253,11 +253,8 @@ export class ChainstackService extends RPCProvider {
     );
   }
 
-  public getHttpUrl(): string {
-    if (!this.selectedNode) {
-      throw new Error('ChainstackService not initialized; call initialize() first');
-    }
-    return this.selectedNode.https_endpoint;
+  public override getHttpUrl(): string | null {
+    return this.selectedNode?.https_endpoint ?? null;
   }
 
   public getWebSocketUrl(): string | null {
