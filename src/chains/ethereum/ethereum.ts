@@ -6,6 +6,7 @@ import fse from 'fs-extra';
 import { ChainstackService } from '../../rpc/chainstack-service';
 import { InfuraService } from '../../rpc/infura-service';
 import { createRateLimitAwareEthereumProvider } from '../../rpc/rpc-connection-interceptor';
+import { RPCProvider } from '../../rpc/rpc-provider-base';
 import { TokenValue, tokenValueToString } from '../../services/base';
 import { ConfigManagerCertPassphrase } from '../../services/config-manager-cert-passphrase';
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
@@ -641,17 +642,12 @@ export class Ethereum {
   }
 
   /**
-   * Get the InfuraService instance if initialized
+   * Get the active RPC provider service (Infura, Chainstack, etc.) if one
+   * is configured. Returns the polymorphic base type so callers don't need
+   * to special-case providers — mirrors Solana.getRpcProviderService().
    */
-  public getInfuraService(): InfuraService | null {
-    return this.infuraService || null;
-  }
-
-  /**
-   * Get the ChainstackService instance if initialized
-   */
-  public getChainstackService(): ChainstackService | null {
-    return this.chainstackService || null;
+  public getRpcProviderService(): RPCProvider | null {
+    return this.chainstackService || this.infuraService || null;
   }
 
   /**

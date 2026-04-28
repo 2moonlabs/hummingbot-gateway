@@ -133,7 +133,7 @@ async function displayEthereumConfig(): Promise<void> {
       // Chainstack discovers its URL asynchronously during getInstance(); pick it up now.
       if (rpcProvider === 'chainstack') {
         try {
-          nodeURL = ethereum.getChainstackService()?.getHttpUrl() ?? nodeURL;
+          nodeURL = ethereum.getRpcProviderService()?.getHttpUrl() ?? nodeURL;
         } catch (error: any) {
           logger.debug(`Unable to get Chainstack URL: ${error.message}`);
         }
