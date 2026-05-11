@@ -1,0 +1,8 @@
+# pnpm workspace configuration
+# https://pnpm.io/pnpm-workspace_yaml
+
+# Disable blocking of exotic subdependencies (required for pnpm v11+)
+# The dependency chain @solflare-wallet/utl-sdk -> @metaplex-foundation/js ->
+# @bundlr-network/client -> arbundles -> avsc uses a git-hosted tarball
+# See: https://github.com/hummingbot/gateway/issues/633
+blockExoticSubdeps: false

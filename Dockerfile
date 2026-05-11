@@ -16,8 +16,8 @@ RUN mkdir -p    /home/gateway/conf \
                 /home/gateway/logs \
                 /home/gateway/certs
 
-# Install pnpm
-RUN npm install -g pnpm@latest
+# Install pnpm (pinned to v10.x for Node 20 compatibility; pnpm v11+ requires Node >= 22.13)
+RUN npm install -g pnpm@10
 
 # Copy package files first
 COPY package.json pnpm-lock.yaml ./
