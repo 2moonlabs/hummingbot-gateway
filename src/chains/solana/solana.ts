@@ -1886,10 +1886,25 @@ export class Solana {
 
       // Import error helpers and parser
       const { simulationFailed, insufficientBalance, slippageExceeded } = await import('../../services/error-handler');
-      const { parseSolanaError } = await import('./solana-error-parser');
+      const { parseSolanaError, extractProgramLogs } = await import('./solana-error-parser');
 
       // Parse the error using the utility
       const parsedError = parseSolanaError(errorMessage);
+
+      // Compose a detailed message including the failing instruction index and
+      // program logs, so callers can diagnose failures without digging through
+      // Gateway server logs.
+      const buildDetail = (base: string): string => {
+        const parts = [base];
+        if (parsedError.instructionIndex !== null) {
+          parts.push(`Failing instruction index: ${parsedError.instructionIndex}.`);
+        }
+        const logs = extractProgramLogs(errorMessage);
+        if (logs.length > 0) {
+          parts.push(`Program logs:\n${logs.join('\n')}`);
+        }
+        return parts.join('\n');
+      };
 
       // Throw appropriate error based on parsed type
       switch (parsedError.type) {
@@ -1899,19 +1914,23 @@ export class Solana {
         case 'INSUFFICIENT_BALANCE':
           throw insufficientBalance(parsedError.message);
 
+        case 'INSTRUCTION_ERROR':
         case 'INVALID_POSITION':
         case 'PRICE_LIMIT_OVERFLOW':
         case 'ACCOUNT_NOT_FOUND':
         case 'MATH_OVERFLOW':
-          throw simulationFailed(parsedError.message);
+          logger.error('Transaction simulation failed:', simulationError);
+          throw simulationFailed(buildDetail(parsedError.message));
 
         default:
           // Generic simulation failure
           logger.error('Transaction simulation failed:', simulationError);
           throw simulationFailed(
-            parsedError.errorCodeHex
-              ? `Transaction simulation failed. Error code: ${parsedError.errorCodeHex}.`
-              : 'Transaction simulation failed.',
+            buildDetail(
+              parsedError.errorCodeHex
+                ? `Transaction simulation failed. Error code: ${parsedError.errorCodeHex}.`
+                : 'Transaction simulation failed.',
+            ),
           );
       }
     }
