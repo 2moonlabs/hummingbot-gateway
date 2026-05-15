@@ -49,10 +49,18 @@ export async function getPoolInfo(fastify: FastifyInstance, network: string, poo
   // Get the price of base token in terms of quote token
   const price = isBaseToken0 ? parseFloat(price0) : parseFloat(price1);
 
-  // Get token reserves in the pool
-  const liquidity = pool.liquidity;
-  const token0Amount = formatTokenAmount(liquidity.toString(), token0.decimals);
-  const token1Amount = formatTokenAmount(liquidity.toString(), token1.decimals);
+  // Read the pool contract's actual ERC20 balances. Uniswap V3's `pool.liquidity` is
+  // the active virtual liquidity in sqrt-price space, not a token amount, so it cannot
+  // be used here.
+  const ethereum = await Ethereum.getInstance(network);
+  const token0Contract = ethereum.getContract(token0.address, ethereum.provider);
+  const token1Contract = ethereum.getContract(token1.address, ethereum.provider);
+  const [token0Balance, token1Balance] = await Promise.all([
+    ethereum.getERC20BalanceByAddress(token0Contract, poolAddress, token0.decimals),
+    ethereum.getERC20BalanceByAddress(token1Contract, poolAddress, token1.decimals),
+  ]);
+  const token0Amount = formatTokenAmount(token0Balance.value.toString(), token0.decimals);
+  const token1Amount = formatTokenAmount(token1Balance.value.toString(), token1.decimals);
 
   // Map to base and quote amounts
   const baseTokenAmount = isBaseToken0 ? token0Amount : token1Amount;
