@@ -1,8 +1,23 @@
 # pnpm workspace configuration
 # https://pnpm.io/pnpm-workspace_yaml
 
-# Disable blocking of exotic subdependencies (required for pnpm v11+)
-# The dependency chain @solflare-wallet/utl-sdk -> @metaplex-foundation/js ->
-# @bundlr-network/client -> arbundles -> avsc uses a git-hosted tarball
+# Disable blocking of exotic subdependencies (required for pnpm v11+).
+# Dependency chain that needs this: @solflare-wallet/utl-sdk -> @metaplex-foundation/js ->
+# @bundlr-network/client -> arbundles -> avsc (git-hosted tarball).
 # See: https://github.com/hummingbot/gateway/issues/633
 blockExoticSubdeps: false
+
+# Native modules whose postinstall build scripts must run for the gateway to function.
+# pnpm v11+ blocks these by default (ERR_PNPM_IGNORED_BUILDS) unless explicitly allowed.
+allowBuilds:
+  bigint-buffer: true
+  bufferutil: true
+  classic-level: true
+  dtrace-provider: true
+  esbuild: true
+  keccak: true
+  node-hid: true
+  secp256k1: true
+  unrs-resolver: true
+  usb: true
+  utf-8-validate: true
