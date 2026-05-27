@@ -264,18 +264,18 @@ export const RaydiumClmmGetPoolInfoRequest = Type.Object({
     description: 'Raydium CLMM pool address',
     examples: [CLMM_POOL_ADDRESS_EXAMPLE],
   }),
-  // binCount is part of the base CLMM pool-info contract. The Raydium
-  // implementation of per-bin distribution is deferred — passing binCount > 0
-  // is currently accepted but has no effect on the response.
   binCount: Type.Optional(
     Type.Integer({
-      description: 'Reserved — bin computation not yet implemented for Raydium CLMM.',
+      description:
+        'If > 0, include a `bins` array (per-tickSpacing token amounts around the current tick), ' +
+        'mirroring Meteora pool-info.bins[]. Default 0 — pool-info skips the extra tick-array fetch.',
       default: 0,
       minimum: 0,
       maximum: 401,
     }),
   ),
 });
+export type RaydiumClmmGetPoolInfoRequestType = Static<typeof RaydiumClmmGetPoolInfoRequest>;
 
 export const RaydiumClmmGetPositionInfoRequest = Type.Object({
   network: Type.Optional(
