@@ -121,6 +121,36 @@ describe('GET /quote-swap', () => {
       expect(body).toHaveProperty('poolAddress', mockPoolAddress);
     });
 
+    it('should forward side to the quote helper (BUY -> exact-output)', async () => {
+      const { getOrcaSwapQuote } = require('../../../../src/connectors/orca/orca.utils');
+      (getOrcaSwapQuote as jest.Mock).mockClear();
+
+      await app.inject({
+        method: 'GET',
+        url: '/quote-swap',
+        query: {
+          network: 'mainnet-beta',
+          baseToken: 'SOL',
+          quoteToken: 'USDC',
+          amount: 1.0,
+          side: 'BUY',
+          poolAddress: mockPoolAddress,
+          slippagePct: 1,
+        },
+      });
+
+      // side must be passed through so the helper picks swapQuoteByOutputToken
+      expect(getOrcaSwapQuote).toHaveBeenCalledWith(
+        expect.anything(),
+        mockPoolAddress,
+        mockQuoteTokenInfo.address, // BUY: input = quote
+        mockBaseTokenInfo.address, // BUY: output = base
+        1.0,
+        'BUY',
+        1,
+      );
+    });
+
     it('should use default slippage if not provided', async () => {
       const response = await app.inject({
         method: 'GET',

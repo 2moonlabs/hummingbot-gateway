@@ -38,6 +38,7 @@ export async function getRawSwapQuote(
     inputToken.address,
     outputToken.address,
     amount,
+    side,
     slippagePct,
   );
 
