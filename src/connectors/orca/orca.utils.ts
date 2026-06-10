@@ -1,5 +1,12 @@
 import { TransactionBuilder } from '@orca-so/common-sdk';
-import { fetchAllTickArray, fetchOracle, fetchWhirlpool, getTickArrayAddress } from '@orca-so/whirlpools-client';
+import {
+  fetchAllPositionWithFilter,
+  fetchAllTickArray,
+  fetchOracle,
+  fetchWhirlpool,
+  getTickArrayAddress,
+  positionWhirlpoolFilter,
+} from '@orca-so/whirlpools-client';
 import {
   IncreaseLiquidityQuote,
   TransferFee,
@@ -10,6 +17,11 @@ import {
   priceToTickIndex,
   sqrtPriceToPrice,
   swapQuoteByInputToken,
+  swapQuoteByOutputToken,
+  tickIndexToPrice,
+  tickIndexToSqrtPrice,
+  tryGetAmountDeltaA,
+  tryGetAmountDeltaB,
 } from '@orca-so/whirlpools-core';
 import {
   ORCA_WHIRLPOOL_PROGRAM_ID,
@@ -361,6 +373,7 @@ export async function getOrcaSwapQuote(
   inputTokenMint: string,
   outputTokenMint: string,
   amount: number,
+  side: 'BUY' | 'SELL',
   slippagePct: number = 1,
 ): Promise<OrcaSwapQuote> {
   const currentEpoch = await rpc.getEpochInfo().send();
@@ -395,9 +408,13 @@ export async function getOrcaSwapQuote(
 
   const tickArrays = await fetchAllTickArray(rpc, tickArrayAddresses);
 
-  // Convert amount to lamports/token units
-  const decimalsToUse = inputMint.data.decimals;
-  const amountBigInt = BigInt(Math.floor(amount * Math.pow(10, decimalsToUse)));
+  // On BUY the route passes (input=quote, output=base) and `amount` is the
+  // desired base (output) amount → exact-output quote. On SELL `amount` is the
+  // base (input) amount → exact-input quote. Convert using the decimals of the
+  // token the amount actually refers to.
+  const exactOut = side === 'BUY';
+  const amountDecimals = exactOut ? outputMint.data.decimals : inputMint.data.decimals;
+  const amountBigInt = BigInt(Math.floor(amount * Math.pow(10, amountDecimals)));
 
   // Get transfer fees
   const inputTransferFee = getCurrentTransferFee(inputMint, currentEpoch.epoch);
@@ -418,20 +435,41 @@ export async function getOrcaSwapQuote(
   // Get timestamp in big int
   const timestamp = BigInt(Math.floor(Date.now() / 1000));
 
-  // Get swap quote
-  const quote = swapQuoteByInputToken(
-    amountBigInt,
-    aToB,
-    slippagePct * 100, // Convert to basis points (1% = 100)
-    whirlpool.data,
-    oracle.data,
-    tickArrays.map((ta) => ta.data),
-    timestamp,
-    inputTransferFee,
-    outputTransferFee,
-  );
-  const estimatedAmountIn = quote.tokenIn;
-  const estimatedAmountOut = quote.tokenEstOut;
+  // Get swap quote. `swapQuoteByOutputToken`/`swapQuoteByInputToken` take a
+  // `specifiedTokenA` flag: for exact-out it means "output is token A"
+  // (= !aToB), for exact-in it means "input is token A" (= aToB).
+  const slippageBps = slippagePct * 100; // Convert to basis points (1% = 100)
+  let estimatedAmountIn: bigint;
+  let estimatedAmountOut: bigint;
+  if (exactOut) {
+    const quote = swapQuoteByOutputToken(
+      amountBigInt,
+      !aToB,
+      slippageBps,
+      whirlpool.data,
+      oracle.data,
+      tickArrays.map((ta) => ta.data),
+      timestamp,
+      inputTransferFee,
+      outputTransferFee,
+    );
+    estimatedAmountIn = quote.tokenEstIn;
+    estimatedAmountOut = quote.tokenOut;
+  } else {
+    const quote = swapQuoteByInputToken(
+      amountBigInt,
+      aToB,
+      slippageBps,
+      whirlpool.data,
+      oracle.data,
+      tickArrays.map((ta) => ta.data),
+      timestamp,
+      inputTransferFee,
+      outputTransferFee,
+    );
+    estimatedAmountIn = quote.tokenIn;
+    estimatedAmountOut = quote.tokenEstOut;
+  }
 
   // Convert bigints to human-readable numbers
   const inputAmount = Number(estimatedAmountIn) / Math.pow(10, inputMint.data.decimals);
@@ -441,13 +479,16 @@ export async function getOrcaSwapQuote(
   const minOutputAmount = outputAmount * (1 - slippagePct / 100);
   const maxInputAmount = inputAmount * (1 + slippagePct / 100);
 
-  // Calculate price and price impact
+  // Calculate price and price impact. `currentPrice` is token B per token A.
+  // `executionPrice = outputAmount / inputAmount` is B-per-A when swapping
+  // A->B but A-per-B when swapping B->A, so normalize it to B-per-A before
+  // comparing — otherwise the B->A branch mixes units and reports a price
+  // impact inflated by roughly currentPrice^2.
   const currentPrice = sqrtPriceToPrice(whirlpool.data.sqrtPrice, mintA.data.decimals, mintB.data.decimals);
   const executionPrice = outputAmount / inputAmount;
+  const executionPriceBPerA = aToB ? executionPrice : 1 / executionPrice;
 
-  const priceImpactPct = aToB
-    ? Math.abs((executionPrice - currentPrice) / currentPrice) * 100
-    : Math.abs((1 / executionPrice - 1 / currentPrice) / (1 / currentPrice)) * 100;
+  const priceImpactPct = Math.abs((executionPriceBPerA - currentPrice) / currentPrice) * 100;
 
   return {
     inputToken: inputTokenMint,
@@ -701,4 +742,81 @@ export function getTickArrayPubkeys(
       ORCA_WHIRLPOOL_PROGRAM_ID,
     ).publicKey,
   };
+}
+
+/**
+ * Per-bin liquidity distribution around the current tick for a whirlpool.
+ *
+ * For each tick-spacing-wide bin in the window:
+ *  1. Sum the L of every open Position whose range overlaps the bin (one
+ *     `fetchAllPositionWithFilter` + `positionWhirlpoolFilter` call covers
+ *     all positions in the pool — a single getProgramAccounts under the hood).
+ *  2. Convert that L to token amounts via V3 sqrt-price math
+ *     (`tryGetAmountDeltaA`/`tryGetAmountDeltaB`), splitting at the current
+ *     sqrtPrice when the bin contains the active tick.
+ *
+ * Output shape mirrors Meteora's `pool-info.bins[]`:
+ *   { binId, price, baseTokenAmount, quoteTokenAmount }
+ */
+export interface OrcaBinDistributionEntry {
+  binId: number;
+  price: number;
+  baseTokenAmount: number;
+  quoteTokenAmount: number;
+}
+
+export async function computeOrcaBinDistribution(args: {
+  rpc: Parameters<typeof fetchAllPositionWithFilter>[0];
+  poolAddress: string;
+  tickSpacing: number;
+  currentTickIndex: number;
+  currentSqrtPrice: bigint;
+  decimalsA: number;
+  decimalsB: number;
+  binCount: number;
+}): Promise<OrcaBinDistributionEntry[]> {
+  const { rpc, poolAddress, tickSpacing, currentTickIndex, currentSqrtPrice, decimalsA, decimalsB, binCount } = args;
+  if (binCount <= 0) return [];
+
+  const positionAccounts = await fetchAllPositionWithFilter(rpc, positionWhirlpoolFilter(address(poolAddress)));
+
+  const halfBins = Math.floor(binCount / 2);
+  const snappedCurrent = Math.floor(currentTickIndex / tickSpacing) * tickSpacing;
+  const firstBinStart = snappedCurrent - halfBins * tickSpacing;
+  const scaleA = 10 ** decimalsA;
+  const scaleB = 10 ** decimalsB;
+
+  const bins: OrcaBinDistributionEntry[] = [];
+  for (let i = 0; i < binCount; i++) {
+    const tickStart = firstBinStart + i * tickSpacing;
+    const tickEnd = tickStart + tickSpacing;
+    let binL = 0n;
+    for (const account of positionAccounts) {
+      const p = account.data;
+      if (p.tickLowerIndex < tickEnd && p.tickUpperIndex > tickStart) {
+        binL += p.liquidity;
+      }
+    }
+    let rawA = 0n;
+    let rawB = 0n;
+    if (binL > 0n) {
+      const sqrtA = tickIndexToSqrtPrice(tickStart);
+      const sqrtB = tickIndexToSqrtPrice(tickEnd);
+      if (currentTickIndex >= tickEnd) {
+        rawB = tryGetAmountDeltaB(sqrtA, sqrtB, binL, false);
+      } else if (currentTickIndex < tickStart) {
+        rawA = tryGetAmountDeltaA(sqrtA, sqrtB, binL, false);
+      } else {
+        rawA = tryGetAmountDeltaA(currentSqrtPrice, sqrtB, binL, false);
+        rawB = tryGetAmountDeltaB(sqrtA, currentSqrtPrice, binL, false);
+      }
+    }
+    bins.push({
+      binId: tickStart,
+      price: tickIndexToPrice(tickStart, decimalsA, decimalsB),
+      baseTokenAmount: Number(rawA) / scaleA,
+      quoteTokenAmount: Number(rawB) / scaleB,
+    });
+  }
+  return bins;
 }
